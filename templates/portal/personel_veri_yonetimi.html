@@ -1,0 +1,46 @@
+{% extends "portal/base.html" %}
+{% block title %}Personel Veri Y&#246;netimi{% endblock %}
+{% block page_title %}Personel Veri Y&#246;netimi{% endblock %}
+{% block content %}
+<section class="section-head colorful-head local-personnel-hero">
+    <p class="eyebrow">Y&#246;netim &#183; Yerel Personel Kartlar&#305;</p>
+    <h2>Personel bilgilerini kontroll&#252; y&#246;net</h2>
+    <p>&Ouml;zl&#252;k verisi yaln&#305;zca sen aktard&#305;&#287;&#305;nda portal&#305; g&#252;nceller. Buradaki unvan, birim, sicil ve ileti&#351;im bilgilerini yerel olarak d&#252;zenleyebilirsin; sonraki &#246;zl&#252;k aktar&#305;m&#305;nda yaln&#305;zca se&#231;ti&#287;in kay&#305;tlar de&#287;i&#351;ir.</p>
+    <div class="source-stats"><span><b>{{ toplam_kaynak }}</b> &#246;zl&#252;k personeli</span><span><b>{{ toplam_portal }}</b> portal kart&#305;</span><span>&#304;zin haklar&#305; ve kullan&#305;mlar&#305; &#246;zl&#252;kten canl&#305; okunur.</span></div>
+</section>
+
+{% if duzenlenecek %}
+<section class="panel local-edit-panel">
+    <div class="panel-title"><div><h2>{{ duzenlenecek.ad_soyad }} &#8212; yerel kart d&#252;zenleme</h2><p>&Ouml;zl&#252;k kayna&#287;&#305; de&#287;i&#351;mez. Kaydetti&#287;in de&#287;erler izin portal&#305;nda kullan&#305;l&#305;r.</p></div><a class="outline-link" href="{% url 'personel_veri_yonetimi' %}">Listeye D&#246;n</a></div>
+    <form method="post" class="local-edit-grid">{% csrf_token %}
+        <input type="hidden" name="islem" value="yerel_kaydet"><input type="hidden" name="source_personel_id" value="{{ duzenlenecek.source_personel_id }}">
+        <label>Sicil No<input name="sicil_no" value="{{ duzenlenecek.sicil_no }}" required></label>
+        <label>Ad<input name="ad" value="{{ duzenlenecek.ad }}" required></label>
+        <label>Soyad<input name="soyad" value="{{ duzenlenecek.soyad }}" required></label>
+        <label>T.C. Kimlik No<input name="tc_no" value="{{ duzenlenecek.tc_no }}" required></label>
+        <label>Unvan<input name="unvan" value="{{ duzenlenecek.unvan }}"></label>
+        <label>G&#246;revi<input name="gorevi" value="{{ duzenlenecek.gorevi }}"></label>
+        <label>G&#246;rev Birimi<input name="gorev_birimi" value="{{ duzenlenecek.gorev_birimi }}"></label>
+        <label>Alt Birimi<input name="alt_birimi" value="{{ duzenlenecek.alt_birimi }}"></label>
+        <label>Cep Telefonu<input name="cep_tel" value="{{ duzenlenecek.cep_tel }}"></label>
+        <label>Durum<input name="durum" value="{{ duzenlenecek.durum }}"></label>
+        <div class="local-edit-actions"><button class="green-action" type="submit">Yerel Bilgileri Kaydet</button></div>
+    </form>
+</section>
+{% endif %}
+
+<section class="panel local-personnel-toolbar">
+    <form method="get" class="local-search"><label>Personel Ara<input name="q" value="{{ q }}" placeholder="Sicil, ad soyad, unvan veya birim yaz"></label><button class="search-btn-wide" type="submit">Ara</button><a class="clear-search-action" href="{% url 'personel_veri_yonetimi' %}">Temizle</a></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="islem" value="tumunu_aktar"><button class="green-action" type="submit">&#214;zl&#252;kten T&#252;m Personeli Aktar</button></form>
+</section>
+
+<form method="post" class="panel local-personnel-list">{% csrf_token %}
+    <div class="panel-title"><div><h2>Personel Kartlar&#305;</h2><p>Sat&#305;r&#305; i&#351;aretle; yaln&#305;zca o ki&#351;ileri &#246;zl&#252;kten g&#252;ncelle. Yerel d&#252;zenleme, &#246;zl&#252;kten aktar&#305;m yap&#305;lmad&#305;k&#231;a korunur.</p></div><button class="blue-action" type="submit" name="islem" value="secilenleri_guncelle">Se&#231;ilenleri &#214;zl&#252;kten G&#252;ncelle</button></div>
+    <div class="local-table-wrap"><table class="local-personnel-table"><thead><tr><th><input class="select-all" type="checkbox" aria-label="T&#252;m&#252;n&#252; se&#231;"></th><th>Sicil</th><th>Ad Soyad</th><th>Yerel Unvan</th><th>Yerel Birim</th><th>Kaynak Durumu</th><th>Son &#214;zl&#252;k Aktar&#305;m&#305;</th><th></th></tr></thead><tbody>
+    {% for satir in satirlar %}
+        <tr><td><input class="person-check" type="checkbox" name="source_ids" value="{{ satir.kaynak.id }}"></td><td>{{ satir.sicil_no }}</td><td><strong>{{ satir.ad_soyad }}</strong></td><td>{{ satir.unvan|default:"-" }}</td><td>{{ satir.birim|default:"-" }}</td><td>{% if satir.portal %}<span class="local-pill">Portal kart&#305; var</span>{% else %}<span class="source-pill">Hen&#252;z aktar&#305;lmad&#305;</span>{% endif %}</td><td>{% if satir.portal %}{{ satir.portal.ozluk_senkron_zamani|date:"d.m.Y H:i" }}{% else %}-{% endif %}</td><td><a class="row-edit" href="?duzenle={{ satir.kaynak.id }}">D&#252;zenle</a></td></tr>
+    {% empty %}<tr><td colspan="8">Araman&#305;za uygun &#246;zl&#252;k personeli bulunamad&#305;.</td></tr>{% endfor %}
+    </tbody></table></div>
+</form>
+<script>document.querySelector('.select-all')?.addEventListener('change',function(){document.querySelectorAll('.person-check').forEach(function(item){item.checked=this.checked}.bind(this))});</script>
+{% endblock %}

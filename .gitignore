@@ -1,0 +1,40 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3
+
+# Virtual environments
+env/
+venv/
+sanal_ortam/
+.venv/
+
+# Local configuration
+.env
+.env.local
+
+# Logs and runtime files
+*.log
+runserver*.log
+.runtime/
+
+# Static/media outputs
+staticfiles/
+collected_static/
+media/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+.coverage
+htmlcov/
+

@@ -1,0 +1,63 @@
+{% extends "portal/base.html" %}
+{% block title %}Kontrol Eden Y&#246;netimi{% endblock %}
+{% block page_title %}Kontrol Eden Y&#246;netimi{% endblock %}
+{% block content %}
+<section class="section-head colorful-head">
+    <p class="eyebrow">Y&#246;netim</p>
+    <h2>Kontrol eden personeller</h2>
+    <p>Kontrol eden personeller, g&#246;rev birimi imzac&#305;lar&#305;ndan ayr&#305; tan&#305;mlan&#305;r. Her personel tipi ilk olarak kendi kontrol eden kullan&#305;c&#305;s&#305;n&#305;n paraf&#305;na gider.</p>
+</section>
+<form method="post" class="control-type-grid">{% csrf_token %}
+    <article class="control-type-card memur-card">
+        <span class="control-icon">M</span><h3>Memur</h3><p>Memur izin evraklar&#305;n&#305;n ilk kontrol&#252;.</p>
+        <div class="person-picker" data-field="kontrol_eden_memur">
+            <label>Kontrol Eden</label>
+            <input type="hidden" name="kontrol_eden_memur" value="{% if ayar.kontrol_eden_memur_id %}{{ ayar.kontrol_eden_memur_id }}{% else %}{{ ayar.kontrol_eden_id|default:'' }}{% endif %}">
+            <div class="picker-line"><input type="text" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz" value="{% if ayar.kontrol_eden_memur %}{{ ayar.kontrol_eden_memur.get_full_name|default:ayar.kontrol_eden_memur.username }} ({{ ayar.kontrol_eden_memur.username }}){% elif ayar.kontrol_eden %}{{ ayar.kontrol_eden.get_full_name|default:ayar.kontrol_eden.username }} ({{ ayar.kontrol_eden.username }}){% endif %}"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+            <div class="picker-results"></div>
+        </div>
+    </article>
+    <article class="control-type-card isci-card">
+        <span class="control-icon">&#304;</span><h3>&#304;&#351;&#231;i</h3><p>&#304;&#351;&#231;i izin evraklar&#305;n&#305;n ilk kontrol&#252;.</p>
+        <div class="person-picker" data-field="kontrol_eden_isci">
+            <label>Kontrol Eden</label>
+            <input type="hidden" name="kontrol_eden_isci" value="{{ ayar.kontrol_eden_isci_id|default:'' }}">
+            <div class="picker-line"><input type="text" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz" value="{% if ayar.kontrol_eden_isci %}{{ ayar.kontrol_eden_isci.get_full_name|default:ayar.kontrol_eden_isci.username }} ({{ ayar.kontrol_eden_isci.username }}){% endif %}"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+            <div class="picker-results"></div>
+        </div>
+    </article>
+    <article class="control-type-card sirket-card">
+        <span class="control-icon">&#350;</span><h3>&#350;irket</h3><p>&#350;irket personeli izin evraklar&#305;n&#305;n ilk kontrol&#252;.</p>
+        <div class="person-picker" data-field="kontrol_eden_sirket">
+            <label>Kontrol Eden</label>
+            <input type="hidden" name="kontrol_eden_sirket" value="{{ ayar.kontrol_eden_sirket_id|default:'' }}">
+            <div class="picker-line"><input type="text" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz" value="{% if ayar.kontrol_eden_sirket %}{{ ayar.kontrol_eden_sirket.get_full_name|default:ayar.kontrol_eden_sirket.username }} ({{ ayar.kontrol_eden_sirket.username }}){% endif %}"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+            <div class="picker-results"></div>
+        </div>
+    </article>
+    <div class="control-save"><button class="green-action" type="submit">Kontrol Edenleri Kaydet</button></div>
+</form>
+<script>
+(function(){
+  async function searchUsers(picker){
+    const input = picker.querySelector('.picker-line input[type="text"]');
+    const hidden = picker.querySelector('input[type="hidden"]');
+    const results = picker.querySelector('.picker-results');
+    const q = input.value.trim();
+    if(q.length < 2){ results.innerHTML=''; results.classList.remove('open'); return; }
+    const response = await fetch('{% url "kullanici_ara" %}?q=' + encodeURIComponent(q));
+    const data = await response.json();
+    results.innerHTML = data.results.map(u => `<button type="button" data-id="${u.id}" data-label="${u.label}">${u.label}<small>${u.username}</small></button>`).join('') || '<div class="no-result">Sonu&#231; yok</div>';
+    results.classList.add('open');
+    results.querySelectorAll('button').forEach(button => button.addEventListener('click', () => { hidden.value=button.dataset.id; input.value=button.dataset.label; results.innerHTML=''; results.classList.remove('open'); }));
+  }
+  document.querySelectorAll('.person-picker').forEach(picker => {
+    const input = picker.querySelector('.picker-line input[type="text"]');
+    const hidden = picker.querySelector('input[type="hidden"]');
+    picker.querySelector('.search-btn').addEventListener('click', () => searchUsers(picker));
+    input.addEventListener('input', () => { hidden.value=''; searchUsers(picker); });
+    picker.querySelector('.clear-btn').addEventListener('click', () => { hidden.value=''; input.value=''; picker.querySelector('.picker-results').innerHTML=''; picker.querySelector('.picker-results').classList.remove('open'); });
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Trabzon İçmesuyu ve Kanalizasyon İdaresi">
+  <circle cx="60" cy="60" r="54" fill="#fff" stroke="#94c916" stroke-width="5"/>
+  <text x="60" y="18" fill="#246db7" font-family="Arial, Helvetica, sans-serif" font-size="8" font-weight="700" text-anchor="middle">İÇMESUYU VE KANALİZASYON</text>
+  <text x="60" y="37" fill="#246db7" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="800" text-anchor="middle">TİSKİ</text>
+  <path d="M24 62c14-18 33-23 55-14-25 4-38 18-39 42-10-5-16-14-16-28z" fill="#94c916"/>
+  <path d="M68 46c13 15 21 29 15 43-5 13-20 18-32 10 14-14 21-26 17-53z" fill="#2b9dd8"/>
+  <path d="M67 55c11 14 14 25 9 35-4 7-12 10-19 7 10-13 14-24 10-42z" fill="#77cff1" opacity=".9"/>
+  <text x="60" y="109" fill="#d21d2b" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="800" text-anchor="middle">2014</text>
+</svg>

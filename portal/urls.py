@@ -1,0 +1,27 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.dashboard, name="dashboard"),
+    path("izin/", views.izin_menu, name="izin_menu"),
+    path("izin-ara/", views.izin_ara, name="izin_ara"),
+    path("izin/<str:tip>/sorgula/", views.tc_sorgula, name="tc_sorgula"),
+    path("izin/<str:tip>/evrak/<int:personel_id>/", views.izin_evrak, name="izin_evrak"),
+    path("izin-talebi/<int:talep_id>/duzenle/", views.izin_talebi_duzenle, name="izin_talebi_duzenle"),
+    path("izin-talebi/yeni/", views.yeni_talep, name="yeni_talep"),
+    path("bildirim/<int:talep_id>/kapat/", views.izin_bildirimini_kapat, name="izin_bildirimini_kapat"),
+    path("bildirimler/kapat/", views.izin_bildirimlerini_kapat, name="izin_bildirimlerini_kapat"),
+    path("evrak/<int:talep_id>/paraf/", views.evrak_paraf, name="evrak_paraf"),
+    path("evrak/<int:talep_id>/onizleme/", views.evrak_onizleme, name="evrak_onizleme"),
+    path("evrak/<int:talep_id>/indir/", views.evrak_indir, name="evrak_indir"),
+    path("yonetim/", views.yonetim, name="yonetim"),
+    path("yonetim/personel-verileri/", views.personel_veri_yonetimi, name="personel_veri_yonetimi"),
+    path("yonetim/izin-talepleri/", views.izin_talepleri_yonetim, name="izin_talepleri_yonetim"),
+    path("yonetim/kullanici-yetkileri/", views.kullanici_yetkileri, name="kullanici_yetkileri"),
+    path("yonetim/kullanici-yetkisi-detay/", views.kullanici_yetkisi_detay, name="kullanici_yetkisi_detay"),
+    path("yonetim/kontrol-edenler/", views.kontrol_eden_yonetimi, name="kontrol_eden_yonetimi"),
+    path("yonetim/gorev-birimleri/", views.gorev_birimi_yonetimi, name="gorev_birimi_yonetimi"),
+    path("yonetim/kullanici-ara/", views.kullanici_ara, name="kullanici_ara"),
+    path("izin-ara/personel-ara/", views.personel_ara, name="personel_ara"),
+    path("izin-ara/birim-ara/", views.birim_ara, name="birim_ara"),
+]

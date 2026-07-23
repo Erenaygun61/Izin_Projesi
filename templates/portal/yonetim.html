@@ -1,0 +1,33 @@
+{% extends "portal/base.html" %}
+{% load portal_extras %}
+{% block title %}Y&#246;netim{% endblock %}
+{% block page_title %}Y&#246;netim{% endblock %}
+{% block content %}
+<section class="section-head colorful-head">
+    <p class="eyebrow">Y&#246;netim Merkezi</p>
+    <h2>&#304;zin portal&#305; y&#246;netim i&#351;lemleri</h2>
+    <p>G&#246;rev birimi imzac&#305;lar&#305;, kontrol edenler, vekaletler, kullan&#305;c&#305; yetkileri ve izin evrak ak&#305;&#351;&#305; ayr&#305; ekranlardan takip edilir.</p>
+</section>
+<section class="quick-tabs management-tabs">
+    {% if tam_yetkili or birim_yetkili %}
+    <a href="{% url 'gorev_birimi_yonetimi' %}"><strong>G&#246;rev Birimi Y&#246;netimi</strong><span>Birim imzac&#305;lar&#305; ve vekaletler</span></a>
+    {% endif %}
+    {% if tam_yetkili %}
+    <a href="{% url 'personel_veri_yonetimi' %}"><strong>Personel Veri Yönetimi</strong><span>Özlükten seçerek aktar, portalda yerel olarak düzenle</span></a>
+    <a href="{% url 'kontrol_eden_yonetimi' %}"><strong>Kontrol Eden Y&#246;netimi</strong><span>Memur, i&#351;&#231;i ve &#351;irket i&#231;in ayr&#305; kontrol eden tan&#305;mla</span></a>
+    <a href="{% url 'gorev_birimi_yonetimi' %}#vekalet"><strong>Vekalet D&#252;zenleme</strong><span>Asil imzac&#305; yerine vekil tan&#305;mla</span></a>
+    <a href="{% url 'kullanici_yetkileri' %}"><strong>Kullan&#305;c&#305; Yetkileri</strong><span>G&#246;rev bazl&#305; portal yetkilerini tan&#305;mla</span></a>
+    {% endif %}
+    {% if evrak_yetkili %}<a href="{% url 'izin_talepleri_yonetim' %}"><strong>&#304;zin Talepleri</strong><span>Evrak&#305; geri &#231;ek, sahibine iade et, takip et</span></a>{% endif %}
+</section>
+<section class="panel">
+    <div class="panel-title"><h2>Aktif &#304;zin Evraklar&#305;</h2><span class="pill">{{ talepler|length }} kay&#305;t</span></div>
+    <table><thead><tr><th>Evrak No</th><th>Kullan&#305;c&#305;</th><th>T&#252;r</th><th>Tarih</th><th>G&#252;n</th><th>Durum</th><th>Kimin &#220;zerinde</th></tr></thead><tbody>
+    {% for talep in talepler %}
+        <tr><td>{{ talep.evrak_no }}</td><td>{{ talep.kullanici.get_full_name|default:talep.kullanici.username }}</td><td>{{ talep.izin_turu.ad }}</td><td>{{ talep.baslangic_tarihi|date:"d.m.Y" }} - {{ talep.bitis_tarihi|date:"d.m.Y" }}</td><td>{{ talep.kullanilan_gun|izin_gunu }}</td><td><span class="status">{{ talep.get_durum_display }}</span></td><td>{% if talep.kimin_uzerinde %}{{ talep.kimin_uzerinde.get_full_name|default:talep.kimin_uzerinde.username }}{% else %}-{% endif %}</td></tr>
+    {% empty %}
+        <tr><td colspan="7">Aktif evrak yok.</td></tr>
+    {% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}

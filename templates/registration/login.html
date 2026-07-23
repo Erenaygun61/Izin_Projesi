@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>T&#304;SK&#304; | &#304;zin Portal&#305;</title>
+    <link rel="stylesheet" href="/static/portal/login.css?v=52">
+</head>
+<body class="login-page">
+    <button class="corner-menu" aria-label="Men&#252;">&#9638;</button>
+    <main class="login-center">
+        <section class="logo-banner" aria-label="T&#304;SK&#304; Logo">
+            <img src="/static/portal/antet.png" alt="T&#304;SK&#304;">
+        </section>
+        <section class="login-window">
+            <div class="avatar-box" aria-hidden="true">
+                <div class="avatar-circle"></div>
+                <div class="avatar-shoulder"></div>
+            </div>
+            <form method="post" class="credential-box">
+                {% csrf_token %}
+                <div class="domain-title">
+                    <span class="flow-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <strong>T&#304;SK&#304;.local Etki Alan&#305; Kullan&#305;c&#305; Bilgileri</strong>
+                </div>
+                {% if form.errors %}<div class="login-error">Kullan&#305;c&#305; ad&#305; veya &#351;ifre hatal&#305;.</div>{% endif %}
+                <label for="{{ form.username.id_for_label }}">Kullan&#305;c&#305; &#304;smi</label>
+                <div class="field-line">
+                    <span class="field-symbol user-symbol" aria-hidden="true"></span>
+                    {{ form.username }}
+                </div>
+                <label for="{{ form.password.id_for_label }}">&#350;ifre</label>
+                <div class="field-line password-line">
+                    <span class="field-symbol key-symbol" aria-hidden="true"></span>
+                    {{ form.password }}
+                </div>
+                <div class="lower-row">
+                    <label class="remember"><input type="checkbox"> <span>Beni Hat&#305;rla</span></label>
+                    <button type="submit" title="Giri&#351;">&#10140;</button>
+                </div>
+            </form>
+        </section>
+        <div class="social-row"><span>f</span><span>t</span></div>
+        <div class="lang-line"><span class="globe"></span> T&#252;rk&#231;e</div>
+    </main>
+    <footer class="system-footer"><span class="vmark">V</span><strong>TRABZON &#304;&#199;MESUYU VE KANAL&#304;ZASYON &#304;DARES&#304;</strong>&nbsp; &#304;Z&#304;N S&#304;STEM&#304;</footer>
+</body>
+</html>

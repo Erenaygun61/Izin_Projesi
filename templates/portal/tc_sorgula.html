@@ -1,0 +1,9 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ bilgi.baslik }}{% endblock %}
+{% block page_title %}{{ bilgi.baslik }}{% endblock %}
+{% block content %}
+<section class="query-shell">
+    <div class="query-info"><p class="eyebrow">T.C. Sorgulama</p><h2>Personeli &#246;zl&#252;kten bulal&#305;m</h2><p>Personelin T.C. Kimlik No bilgisini gir. Kay&#305;t ana maa&#351;/&#246;zl&#252;k program&#305;nda bulunursa izin yazma ekran&#305;na ge&#231;ece&#287;iz.</p><div class="steps"><span class="active">1 Sorgula</span><span>2 Evrak Bilgileri</span><span>3 Kaydet</span></div></div>
+    <form method="post" class="query-card">{% csrf_token %}<label>{{ form.tc_no.label }}</label>{{ form.tc_no }}{% for error in form.tc_no.errors %}<small class="field-error">{{ error }}</small>{% endfor %}<button type="submit">&#304;zin Sorgula</button><a href="{% url 'izin_menu' %}">Evrak t&#252;rlerine d&#246;n</a></form>
+</section>
+{% endblock %}

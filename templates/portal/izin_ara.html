@@ -1,0 +1,148 @@
+{% extends "portal/base.html" %}
+{% block title %}Evrak Arama{% endblock %}
+{% block page_title %}Evrak Arama{% endblock %}
+{% block content %}
+<section class="search-filter-panel advanced-search-panel">
+    <div class="filter-head"><h2>&#128269; Evrak Filtrele</h2><span>Genel aramada her alanda e&#351;le&#351;me aran&#305;r; personeli ayr&#305; b&#252;y&#252;te&#231;ten se&#231;ebilirsiniz.</span></div>
+    <form method="get" class="advanced-search-grid">
+        <label>Genel Arama<input type="text" name="q" value="{{ q }}" placeholder="Evrak, ki&#351;i, birim, imzalayan, izin t&#252;r&#252; veya a&#231;&#305;klama ara"></label>
+        <label>Evrak No / Say&#305;<input type="text" name="evrak_no" value="{{ evrak_no }}" placeholder="&#214;rn: 2026-12"></label>
+        <label>Evrak Tarihi Ba&#351;lang&#305;&#231;<input type="date" name="tarih_baslangic" value="{{ tarih_baslangic }}"></label>
+        <label>Evrak Tarihi Biti&#351;<input type="date" name="tarih_bitis" value="{{ tarih_bitis }}"></label>
+        <div class="filter-picker" data-kind="birim">
+            <label>Birim</label>
+            <input type="hidden" name="birim" value="{{ birim }}">
+            <input type="hidden" name="alt_birim" value="{{ alt_birim }}">
+            <div class="picker-line"><input type="text" name="birim_metin" value="{% if birim %}{{ birim }}{% if alt_birim %} / {{ alt_birim }}{% endif %}{% else %}{{ birim_metin }}{% endif %}" placeholder="Birim ad&#305; yaz veya b&#252;y&#252;te&#231;ten se&#231;"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+            <div class="picker-results"></div>
+        </div>
+        <div class="filter-picker" data-kind="personel">
+            <label>Personel</label>
+            <input type="hidden" name="personel" value="{% if secili_personel %}{{ secili_personel.id }}{% endif %}">
+            <div class="picker-line"><input type="text" name="personel_metin" value="{% if secili_personel %}{{ secili_personel.sicil_no }} - {{ secili_personel.ad_soyad }}{% else %}{{ personel_metin }}{% endif %}" placeholder="Sicil no veya ad soyad yaz"><button type="button" class="search-btn" title="Personel ara">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+            <div class="picker-results"></div>
+        </div>
+        <div class="filter-picker" data-kind="kullanici">
+            <label>&#304;mzalayan Kullan&#305;c&#305;</label>
+            <input type="hidden" name="imzalayan" value="{% if secili_imzalayan %}{{ secili_imzalayan.id }}{% endif %}">
+            <div class="picker-line"><input type="text" name="imzalayan_metin" value="{% if secili_imzalayan %}{{ secili_imzalayan.get_full_name|default:secili_imzalayan.username }} ({{ secili_imzalayan.username }}){% else %}{{ imzalayan_metin }}{% endif %}" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+            <div class="picker-results"></div>
+        </div>
+        <label>Durum<select name="durum"><option value="">T&#252;m&#252;</option>{% for key,label in durumlar %}<option value="{{ key }}" {% if durum == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        <div class="search-actions"><a href="{% url 'izin_ara' %}" class="clear-search-action">Temizle</a><button class="green-action">Ara</button></div>
+    </form>
+</section>
+<section class="evrak-table-wrap">
+    <table class="evrak-search-table"><thead><tr>
+        <th></th>
+        <th><a class="sort-link {% if sort_links.evrak_tanimi.active %}active{% endif %}" href="?{{ sort_links.evrak_tanimi.url }}">Evrak Tan&#305;m&#305;{% if sort_links.evrak_tanimi.active %}<span>{% if sort_links.evrak_tanimi.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.birim.active %}active{% endif %}" href="?{{ sort_links.birim.url }}">Evrak&#305;n Birimi{% if sort_links.birim.active %}<span>{% if sort_links.birim.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.konu.active %}active{% endif %}" href="?{{ sort_links.konu.url }}">Konu{% if sort_links.konu.active %}<span>{% if sort_links.konu.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.evrak_no.active %}active{% endif %}" href="?{{ sort_links.evrak_no.url }}">Evrak No{% if sort_links.evrak_no.active %}<span>{% if sort_links.evrak_no.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.kurum_kayit.active %}active{% endif %}" href="?{{ sort_links.kurum_kayit.url }}">Kurum Kay&#305;t Tarihi{% if sort_links.kurum_kayit.active %}<span>{% if sort_links.kurum_kayit.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.olusturma.active %}active{% endif %}" href="?{{ sort_links.olusturma.url }}">Olu&#351;turulma{% if sort_links.olusturma.active %}<span>{% if sort_links.olusturma.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.olusturan.active %}active{% endif %}" href="?{{ sort_links.olusturan.url }}">Olu&#351;turan{% if sort_links.olusturan.active %}<span>{% if sort_links.olusturan.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.imzalayanlar.active %}active{% endif %}" href="?{{ sort_links.imzalayanlar.url }}">&#304;mzalayanlar{% if sort_links.imzalayanlar.active %}<span>{% if sort_links.imzalayanlar.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.durum.active %}active{% endif %}" href="?{{ sort_links.durum.url }}">Durum{% if sort_links.durum.active %}<span>{% if sort_links.durum.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th><a class="sort-link {% if sort_links.kimde.active %}active{% endif %}" href="?{{ sort_links.kimde.url }}">Kimin &#220;zerinde{% if sort_links.kimde.active %}<span>{% if sort_links.kimde.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th>Detay</th>
+    </tr></thead><tbody>
+        {% for row in rows %}<tr class="row-{{ row.talep.durum|lower }}">
+            <td class="row-menu-cell">
+                <div class="row-menu">
+                    <button type="button" class="row-menu-trigger" title="&#304;&#351;lemler">&#9776;</button>
+                    <div class="row-menu-pop">
+                        <a href="{% url 'evrak_paraf' row.talep.id %}">Evrak&#305; a&#231;</a>
+                        <a href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#214;nizle</a>
+                        {% if can_delete %}<form method="post" onsubmit="return confirm('{{ row.talep.evrak_no }} numaral&#305; izin evrak&#305; silinsin mi?');">{% csrf_token %}<input type="hidden" name="islem" value="izin_sil"><input type="hidden" name="talep_id" value="{{ row.talep.id }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit">Sil</button></form>{% endif %}
+                    </div>
+                </div>
+            </td>
+            <td><a href="{% url 'evrak_paraf' row.talep.id %}">&#304;zin Talep Formu</a></td>
+            <td>{% if row.personel %}{{ row.personel.gorev_birimi }}{% if row.personel.alt_birimi %}<br><small>{{ row.personel.alt_birimi }}</small>{% endif %}{% endif %}</td>
+            <td>&#304;zin &#304;ste&#287;i</td>
+            <td class="red-no">{{ row.talep.evrak_no }}</td>
+            <td>{{ row.talep.kurum_kayit_tarihi|date:"d.m.Y" }}</td>
+            <td>{{ row.talep.olusturma_zamani|date:"d.m.Y H:i" }}</td>
+            <td>{{ row.talep.kullanici.get_full_name|default:row.talep.kullanici.username }}</td>
+            <td>{% for user in row.imzalayanlar %}<span class="signer-chip">{{ user.get_full_name|default:user.username }}</span>{% empty %}-{% endfor %}</td>
+            <td><span class="status status-{{ row.talep.durum|lower }}">{{ row.talep.get_durum_display }}</span></td>
+            <td class="holder-cell">{% if row.kimde %}{{ row.kimde.get_full_name|default:row.kimde.username }}{% else %}-{% endif %}</td>
+            <td class="detail-actions"><a class="preview-action" href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#128065; &#214;nizleme</a><a href="{% url 'evrak_paraf' row.talep.id %}">&#128269;</a></td>
+        </tr>{% empty %}<tr><td colspan="12">Kay&#305;t bulunamad&#305;.</td></tr>{% endfor %}
+    </tbody></table>
+    <div class="table-pager">
+        <div class="pager-info">{{ paginator.count }} kay&#305;ttan {{ page_obj.start_index }} - {{ page_obj.end_index }} aras&#305; g&#246;steriliyor.</div>
+        <div class="pager-controls">
+            {% if page_obj.has_previous %}<a href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.previous_page_number }}">&#171;</a>{% else %}<span>&#171;</span>{% endif %}
+            {% for number in paginator.page_range %}
+                {% if number == page_obj.number %}<span class="current">{{ number }}</span>{% elif number >= page_obj.number|add:"-2" and number <= page_obj.number|add:"2" %}<a href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ number }}">{{ number }}</a>{% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}<a href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.next_page_number }}">&#187;</a>{% else %}<span>&#187;</span>{% endif %}
+        </div>
+        <label class="page-size">G&#246;ster
+            <select id="perPageSelect">
+                {% for option in per_page_options %}<option value="{{ option }}" {% if per_page == option %}selected{% endif %}>{{ option }}</option>{% endfor %}
+            </select>
+        </label>
+    </div>
+</section>
+<script>
+(function(){
+  function reset(picker){
+    picker.querySelectorAll('input[type="hidden"]').forEach(input => input.value='');
+    picker.querySelector('.picker-line input[type="text"]').value='';
+    const results=picker.querySelector('.picker-results'); results.innerHTML=''; results.classList.remove('open');
+  }
+  async function search(picker){
+    const input=picker.querySelector('.picker-line input[type="text"]');
+    const results=picker.querySelector('.picker-results');
+    const q=input.value.trim();
+    const kind=picker.dataset.kind;
+    if(q.length<2 && kind!=='personel'){ results.innerHTML=''; results.classList.remove('open'); return; }
+    const endpoint=kind==='birim' ? '{% url "birim_ara" %}' : kind==='personel' ? '{% url "personel_ara" %}' : '{% url "kullanici_ara" %}';
+    const response=await fetch(endpoint+'?q='+encodeURIComponent(q));
+    const data=await response.json();
+    results.innerHTML=(data.results||[]).map(item => kind==='birim'
+      ? `<button type="button" data-birim="${item.birim}" data-alt="${item.alt_birim}" data-label="${item.label}">${item.label}</button>`
+      : kind==='personel'
+        ? `<button type="button" data-id="${item.id}" data-label="${item.label}">${item.label}<small>${item.birim || ''}</small></button>`
+        : `<button type="button" data-id="${item.id}" data-label="${item.label}">${item.label}<small>${item.username}</small></button>`
+    ).join('') || '<div class="no-result">Sonu&#231; yok</div>';
+    results.classList.add('open');
+    results.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{
+      input.value=button.dataset.label;
+      if(kind==='birim'){
+        picker.querySelector('input[name="birim"]').value=button.dataset.birim;
+        picker.querySelector('input[name="alt_birim"]').value=button.dataset.alt;
+      } else if(kind==='personel') picker.querySelector('input[name="personel"]').value=button.dataset.id;
+      else picker.querySelector('input[name="imzalayan"]').value=button.dataset.id;
+      results.innerHTML=''; results.classList.remove('open');
+    }));
+  }
+  document.querySelectorAll('.filter-picker').forEach(picker=>{
+    const input=picker.querySelector('.picker-line input[type="text"]');
+    picker.querySelector('.search-btn').addEventListener('click',()=>search(picker));
+    input.addEventListener('input',()=>{ picker.querySelectorAll('input[type="hidden"]').forEach(hidden=>hidden.value=''); search(picker); });
+    picker.querySelector('.clear-btn').addEventListener('click',()=>reset(picker));
+  });
+  document.querySelectorAll('.row-menu-trigger').forEach(button => {
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      document.querySelectorAll('.row-menu.open').forEach(menu => {
+        if(menu !== button.closest('.row-menu')) menu.classList.remove('open');
+      });
+      button.closest('.row-menu').classList.toggle('open');
+    });
+  });
+  document.addEventListener('click', () => document.querySelectorAll('.row-menu.open').forEach(menu => menu.classList.remove('open')));
+  const perPage = document.getElementById('perPageSelect');
+  if(perPage){
+    perPage.addEventListener('change', () => {
+      const base = '{{ page_size_query|escapejs }}';
+      window.location.href = (base ? '?' + base + '&' : '?') + 'per_page=' + encodeURIComponent(perPage.value);
+    });
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "portal/base.html" %}
+{% load portal_extras %}
+{% block title %}&#304;zin Talepleri{% endblock %}
+{% block page_title %}&#304;zin Talepleri{% endblock %}
+{% block content %}
+<section class="section-head colorful-head">
+    <p class="eyebrow">Y&#246;netim</p>
+    <h2>&#304;zin talep ak&#305;&#351;&#305;</h2>
+    <p>Yetkili kullan&#305;c&#305;lar burada imzada bekleyen evrak&#305; kontrol a&#351;amas&#305;na geri &#231;ekebilir veya sahibine iade edebilir.</p>
+</section>
+<section class="search-filter-panel">
+    <h2>&#128269; Filtrele</h2>
+    <form method="get" class="search-grid">
+        <label>Genel Arama<input type="text" name="q" value="{{ q }}" placeholder="Evrak no, kullan&#305;c&#305;, ad soyad"></label>
+        <label>Durum<select name="durum"><option value="">T&#252;m&#252;</option>{% for key,label in durumlar %}<option value="{{ key }}" {% if durum == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        <div class="search-actions"><a href="{% url 'izin_talepleri_yonetim' %}" class="danger-action small">Temizle</a><button class="green-action">Ara</button></div>
+    </form>
+</section>
+<section class="evrak-table-wrap">
+    <table class="evrak-search-table"><thead><tr><th>Evrak No</th><th>Personel</th><th>Birim</th><th>T&#252;r</th><th>Tarih</th><th>G&#252;n</th><th>Durum</th><th>Kimin &#220;zerinde</th><th>Not</th><th>&#304;&#351;lem</th></tr></thead><tbody>
+    {% for row in rows %}
+        <tr class="row-{{ row.talep.durum|lower }}">
+            <td class="red-no">{{ row.talep.evrak_no }}</td>
+            <td>{{ row.talep.kullanici.get_full_name|default:row.talep.kullanici.username }}</td>
+            <td>{% if row.personel %}{{ row.personel.alt_birimi|default:row.personel.gorev_birimi }}{% endif %}</td>
+            <td>{% if row.talep.izin_turu %}{{ row.talep.izin_turu.ad }}{% else %}&#304;zin t&#252;r&#252; se&#231;ilmedi{% endif %}</td>
+            <td>{{ row.talep.baslangic_tarihi|date:"d.m.Y" }} - {{ row.talep.bitis_tarihi|date:"d.m.Y" }}</td>
+            <td>{{ row.talep.kullanilan_gun|izin_gunu }}</td>
+            <td><span class="status status-{{ row.talep.durum|lower }}">{{ row.talep.get_durum_display }}</span></td>
+            <td class="holder-cell">{% if row.talep.kimin_uzerinde %}{{ row.talep.kimin_uzerinde.get_full_name|default:row.talep.kimin_uzerinde.username }}{% else %}-{% endif %}</td>
+            <td>
+                <form id="flow{{ row.talep.id }}" method="post">{% csrf_token %}
+                    <input type="hidden" name="talep_id" value="{{ row.talep.id }}">
+                    <input class="flow-note" type="text" name="not" placeholder="K&#305;sa not">
+                </form>
+            </td>
+            <td class="flow-actions">
+                {% if geri_cekebilir %}<button form="flow{{ row.talep.id }}" name="islem" value="geri_cek" class="outline-action">&#8634; Geri &#199;ek</button>{% endif %}
+                {% if iade_edebilir %}<button form="flow{{ row.talep.id }}" name="islem" value="sahibine_iade" class="danger-action">Sahibine &#304;ade</button>{% endif %}
+                <a class="outline-action" href="{% url 'evrak_paraf' row.talep.id %}">A&#231;</a>
+                <a class="preview-action" href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#214;nizleme</a>
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="10">Kay&#305;t bulunamad&#305;.</td></tr>
+    {% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "portal/base.html" %}
+{% block title %}G&#246;rev Birimi Y&#246;netimi{% endblock %}
+{% block page_title %}G&#246;rev Birimi Y&#246;netimi{% endblock %}
+{% block content %}
+<section class="section-head colorful-head"><p class="eyebrow">Y&#246;netim</p><h2>G&#246;rev birimi imzac&#305;lar&#305;</h2><p>Liste kendili&#287;inden de&#287;i&#351;mez. Portal personel kartlar&#305;nda yapt&#305;&#287;&#305;n&#305;z de&#287;i&#351;iklikleri birimlere yans&#305;tmak istedi&#287;inizde a&#351;a&#287;&#305;daki senkronizasyon i&#351;lemini ba&#351;lat&#305;n.</p><form method="post" class="inline-sync-form">{% csrf_token %}<input type="hidden" name="islem" value="birim_senkronize"><button class="green-action" type="submit">Verileri Senkronize Et</button></form></section>
+
+<form method="post" class="unit-board">{% csrf_token %}<input type="hidden" name="islem" value="imzaci_kaydet">
+    <div class="unit-board-head"><div><strong>G&#246;rev Birimleri ve Alt Birimler</strong><span>Toplam: {{ kayitlar|length }} kay&#305;t</span></div><button type="submit" class="green-action">Kaydet</button></div>
+    <div class="unit-card-list">
+        {% regroup kayitlar by birim_adi as birim_gruplari %}
+        {% for grup in birim_gruplari %}
+            <article class="unit-card">
+                <div class="unit-main-row">
+                    <button type="button" class="toggle-unit" data-target="unit-{{ forloop.counter }}">&#9656;</button>
+                    <span class="unit-badge">B</span>
+                    <div class="unit-title"><strong>{{ grup.grouper }}</strong><span>{{ grup.list|length }} kay&#305;t</span></div>
+                    <span class="unit-code">{{ grup.grouper|slice:":2"|upper }}</span>
+                    <span class="active-pill">Aktif</span>
+                </div>
+                <div class="unit-detail" id="unit-{{ forloop.counter }}">
+                    {% for kayit in grup.list %}
+                        <div class="subunit-row">
+                            <div class="subunit-name">{% if kayit.alt_birim_adi %}<strong>{{ kayit.alt_birim_adi }}</strong><span>Alt birim</span>{% else %}<strong>Daire / ana birim</strong><span>{{ kayit.birim_adi }}</span>{% endif %}</div>
+                            {% if kayit.alt_birim_adi %}
+                                <input type="hidden" name="daire_{{ kayit.id }}" value="">
+                                <div class="role-placeholder"><b>{% if "Genel Müdürlük" in kayit.birim_adi %}Genel Müdür{% else %}Daire Ba&#351;kan&#305;{% endif %}</b><span>Ana birimden otomatik gelir.</span></div>
+                                <div class="person-picker" data-field="sube_{{ kayit.id }}">
+                                    <label>&#350;ube M&#252;d&#252;r&#252;</label>
+                                    <input type="hidden" name="sube_{{ kayit.id }}" value="{{ kayit.sube_muduru_id|default:'' }}">
+                                    <div class="picker-line"><input type="text" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz" value="{% if kayit.sube_muduru %}{{ kayit.sube_muduru.get_full_name|default:kayit.sube_muduru.username }} ({{ kayit.sube_muduru.username }}){% endif %}"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+                                    <div class="picker-results"></div>
+                                </div>
+                            {% else %}
+                                <div class="person-picker" data-field="daire_{{ kayit.id }}">
+                                    <label>{% if "Genel Müdürlük" in kayit.birim_adi %}Genel Müdür{% else %}Daire Ba&#351;kan&#305;{% endif %}</label>
+                                    <input type="hidden" name="daire_{{ kayit.id }}" value="{{ kayit.daire_baskani_id|default:'' }}">
+                                    <div class="picker-line"><input type="text" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz" value="{% if kayit.daire_baskani %}{{ kayit.daire_baskani.get_full_name|default:kayit.daire_baskani.username }} ({{ kayit.daire_baskani.username }}){% endif %}"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+                                    <div class="picker-results"></div>
+                                </div>
+                                <input type="hidden" name="sube_{{ kayit.id }}" value="">
+                                <div class="role-placeholder"><b>&#350;ube M&#252;d&#252;r&#252;</b><span>Ana birimde se&#231;ilmez.</span></div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+</form>
+<section class="grid two management-grid">
+    <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="islem" value="vekalet_ekle">
+        <div class="panel-title"><h2>Vekalet Ekle</h2></div>
+        <div class="stack-form">
+            <div class="person-picker vekalet-picker" data-field="asil_kullanici">
+                <label>As&#305;l Kullan&#305;c&#305;</label>
+                <input type="hidden" name="asil_kullanici" required>
+                <div class="picker-line"><input type="text" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+                <div class="picker-results"></div>
+            </div>
+            <div class="person-picker vekalet-picker" data-field="vekil_kullanici">
+                <label>Vekil Kullan&#305;c&#305;</label>
+                <input type="hidden" name="vekil_kullanici" required>
+                <div class="picker-line"><input type="text" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+                <div class="picker-results"></div>
+            </div>
+            <div class="inline-fields"><label>Ba&#351;lang&#305;&#231;<input type="date" name="baslangic_tarihi" required></label><label>Biti&#351;<input type="date" name="bitis_tarihi" required></label></div>
+            <label>A&#231;&#305;klama<input type="text" name="aciklama" placeholder="&#214;rn: y&#305;ll&#305;k izin vekaleti"></label>
+            <button type="submit">Vekalet kaydet</button>
+        </div>
+    </form>
+    <section class="panel vekalet-history" id="vekalet">
+        <div class="panel-title">
+            <div>
+                <h2>Vekalet Ge&#231;mi&#351;i</h2>
+                <p>Ge&#231;mi&#351; kay&#305;tlar silinmez; s&#252;resi biten vekalet ertesi g&#252;n otomatik pasife d&#252;&#351;er.</p>
+            </div>
+        </div>
+        <form method="get" class="vekalet-search">
+            <label>As&#305;l veya vekil ara
+                <input type="text" name="vekalet_q" value="{{ vekalet_q }}" placeholder="&#214;rn: Zeki Yami&#231;, erenaygun">
+            </label>
+            <button type="submit" class="green-action">Ara</button>
+            {% if vekalet_q %}<a class="clear-search-action" href="{% url 'gorev_birimi_yonetimi' %}#vekalet">Temizle</a>{% endif %}
+        </form>
+        <div class="table-scroll">
+            <table class="vekalet-table">
+                <thead><tr><th>As&#305;l Kullan&#305;c&#305;</th><th>Vekil Kullan&#305;c&#305;</th><th>Ba&#351;lang&#305;&#231; / Biti&#351;</th><th>A&#231;&#305;klama</th><th>Durum</th><th>&#304;&#351;lem</th></tr></thead>
+                <tbody>
+                    {% for v in vekaletler %}
+                        <tr>
+                            <td><strong>{{ v.asil_kullanici.get_full_name|default:v.asil_kullanici.username }}</strong><small>{{ v.asil_kullanici.username }}</small></td>
+                            <td><strong>{{ v.vekil_kullanici.get_full_name|default:v.vekil_kullanici.username }}</strong><small>{{ v.vekil_kullanici.username }}</small></td>
+                            <td>{{ v.baslangic_tarihi|date:"d.m.Y" }} - {{ v.bitis_tarihi|date:"d.m.Y" }}</td>
+                            <td>{{ v.aciklama|default:"-" }}</td>
+                            <td><span class="vekalet-status status-{{ v.durum_sinifi }}">{{ v.durum_etiketi }}</span></td>
+                            <td>{% if v.gecerli_mi %}<form method="post">{% csrf_token %}<input type="hidden" name="islem" value="vekalet_pasif"><input type="hidden" name="vekalet_id" value="{{ v.id }}"><button class="mini-danger">Pasif yap</button></form>{% else %}-{% endif %}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6">Vekalet kayd&#305; bulunamad&#305;.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+<script>
+(function(){
+  document.querySelectorAll('.toggle-unit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const el = document.getElementById(btn.dataset.target);
+      if(!el) return;
+      el.classList.toggle('open');
+      btn.textContent = el.classList.contains('open') ? '?' : '?';
+    });
+  });
+  async function searchUsers(picker){
+    const input = picker.querySelector('.picker-line input[type="text"]');
+    const hidden = picker.querySelector('input[type="hidden"]');
+    const results = picker.querySelector('.picker-results');
+    const q = input.value.trim();
+    if(q.length < 2){ results.innerHTML = ''; results.classList.remove('open'); return; }
+    const res = await fetch('{% url "kullanici_ara" %}?q=' + encodeURIComponent(q));
+    const data = await res.json();
+    results.innerHTML = data.results.map(u => `<button type="button" data-id="${u.id}" data-label="${u.label}">${u.label}<small>${u.username}</small></button>`).join('') || '<div class="no-result">Sonu&#231; yok</div>';
+    results.classList.add('open');
+    results.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => { hidden.value = btn.dataset.id; input.value = btn.dataset.label; results.innerHTML = ''; results.classList.remove('open'); }));
+  }
+  document.querySelectorAll('.person-picker').forEach(picker => {
+    const input = picker.querySelector('.picker-line input[type="text"]');
+    const hidden = picker.querySelector('input[type="hidden"]');
+    picker.querySelector('.search-btn').addEventListener('click', () => searchUsers(picker));
+    input.addEventListener('input', () => { hidden.value = ''; searchUsers(picker); });
+    picker.querySelector('.clear-btn').addEventListener('click', () => { hidden.value = ''; input.value = ''; picker.querySelector('.picker-results').innerHTML = ''; });
+  });
+  document.querySelectorAll('.unit-card').forEach(card => {
+    const baslik = (card.querySelector('.unit-title strong')?.textContent || '').toLocaleLowerCase('tr-TR');
+    if(!baslik.includes('genel m\u00fcd\u00fcrl\u00fck')) return;
+    card.querySelectorAll('.role-placeholder b,.person-picker label').forEach(label => {
+      if(label.textContent.includes('Daire')) label.textContent = 'Genel M\u00fcd\u00fcr';
+    });
+  });
+})();
+</script>
+{% endblock %}

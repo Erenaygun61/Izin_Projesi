@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Trabzon Büyükşehir Belediyesi">
+  <circle cx="60" cy="60" r="56" fill="#0b66ad" stroke="#be244f" stroke-width="4"/>
+  <circle cx="60" cy="60" r="39" fill="#fff" stroke="#be244f" stroke-width="2"/>
+  <text x="60" y="22" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" text-anchor="middle">TRABZON</text>
+  <text x="60" y="104" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="800" text-anchor="middle">1868</text>
+  <path d="M60 25c-8 15-18 19-31 17v14c13 2 23-1 31-10 8 9 18 12 31 10V42c-13 2-23-2-31-17z" fill="#bd244e"/>
+  <path d="M31 58c14 3 22-1 29-9 7 8 15 12 29 9-1 9-7 16-18 19-5 2-8 5-11 11-3-6-6-9-11-11-11-3-17-10-18-19z" fill="#bd244e"/>
+  <path d="M18 84c10-14 22-17 34-6 10-10 23-10 34 0 5-5 10-7 16-7v15c-7 0-11 2-16 8-10-10-23-10-34 0-9-9-20-8-34 2z" fill="#13aee5"/>
+</svg>

@@ -1,0 +1,39 @@
+{% extends "portal/base.html" %}
+{% load portal_extras %}
+{% block title %}{{ bilgi.baslik }}{% endblock %}
+{% block page_title %}{% if duzenleme %}Evrak Bilgilerini G&#252;ncelle{% else %}{{ bilgi.baslik }}{% endif %}{% endblock %}
+{% block content %}
+<section class="document-layout">
+    <div class="document-preview">
+        <div class="paper-toolbar"><span>&#304;&#231;erik</span><span>Ekler</span><span>&#304;lgili Evrak</span></div>
+        <div class="paper">
+            <p class="eyebrow">{% if duzenleme %}Taslak evrak{% else %}Yeni evrak{% endif %}</p>
+            <h2>{% if duzenleme %}Evrak Bilgilerini G&#252;ncelle{% else %}&#304;zin Talep Formu{% endif %}</h2>
+            <p>{% if duzenleme %}{{ form.evrak_no.value }} numaral&#305; evrak a&#231;&#305;ld&#305;. Bilgileriniz korunmu&#351;tur; d&#252;zenleyip taslak olarak b&#305;rakabilir veya onaya sunabilirsiniz.{% else %}{{ personel.ad_soyad }} i&#231;in izin evrak&#305;n&#305; doldurun. &#304;&#351;lemi daha sonra tamamlayacaksan&#305;z taslak olarak kaydedin.{% endif %}</p>
+            <div class="paper-line"></div><div class="paper-line short"></div>
+        </div>
+    </div>
+    <aside class="document-panel">
+        <div class="doc-panel-title"><h2>Di&#287;er</h2><span>&#9662;</span></div>
+        <div class="person-summary">
+            <strong>{{ personel.ad_soyad }}</strong><span>{{ personel.tc_no }} &#183; Sicil {{ personel.sicil_no }}</span><em>Toplam kalan izin: {{ toplam_kalan|izin_gunu }} g&#252;n</em>
+            <div class="signer-summary"><b>&#304;mzac&#305;lar</b>{% for rol,user in imzacilar %}<span>{{ rol }}: {{ user.get_full_name|default:user.username }}</span>{% empty %}<span>&#304;mzac&#305; tan&#305;mlanmam&#305;&#351;. L&#252;tfen &#304;K birimi ile g&#246;r&#252;&#351;&#252;n&#252;z.</span>{% endfor %}</div>
+        </div>
+        <form method="post" class="evrak-form">{% csrf_token %}
+            {% if form.non_field_errors %}<div class="form-errors">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+            {% for field in form %}
+                <div class="doc-field {% if field.field.widget.attrs.data_system %}is-system{% elif field.field.required %}is-required{% else %}is-optional{% endif %} {% if field.name == 'adres' %}wide{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+                    {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+                </div>
+            {% endfor %}
+            <div class="bottom-actions">
+                <a href="{% url 'dashboard' %}">Vazge&#231;</a>
+                <button class="draft-action" type="submit" name="islem" value="taslak_kaydet">Tasla&#287;&#305; Kaydet</button>
+                <button type="submit" name="islem" value="onaya_sun">Onaya Sun</button>
+            </div>
+        </form>
+    </aside>
+</section>
+
+{% endblock %}

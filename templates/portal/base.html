@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="tr">
+{% load portal_extras %}
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}&#304;zin Portal&#305;{% endblock %}</title>
+    <link rel="stylesheet" href="/static/portal/style.css?v=23">
+</head>
+<body class="app-body {% if indir %}document-window{% endif %}">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">&#304;</div>
+            <div><strong>&#304;zin Portal&#305;</strong><span>T&#304;SK&#304;</span></div>
+        </div>
+        <nav class="side-nav">
+            <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Ana Sayfa</a>
+            <a href="{% url 'izin_menu' %}" class="{% if request.resolver_match.url_name == 'izin_menu' or request.resolver_match.url_name == 'tc_sorgula' or request.resolver_match.url_name == 'izin_evrak' or request.resolver_match.url_name == 'izin_talebi_duzenle' %}active{% endif %}">&#304;zin</a>
+            <a href="{% url 'izin_ara' %}" class="{% if request.resolver_match.url_name == 'izin_ara' %}active{% endif %}">&#304;zin Ara</a>
+            {% if request.user.is_staff or request.user.is_superuser or request.user.portal_yetki.aktif_mi %}
+                <a href="{% url 'yonetim' %}" class="{% if request.resolver_match.url_name == 'yonetim' or request.resolver_match.url_name == 'gorev_birimi_yonetimi' or request.resolver_match.url_name == 'izin_talepleri_yonetim' or request.resolver_match.url_name == 'kullanici_yetkileri' or request.resolver_match.url_name == 'kontrol_eden_yonetimi' %}active{% endif %}">Y&#246;netim</a>
+            {% endif %}
+        </nav>
+        <form method="post" action="{% url 'logout' %}" class="logout-form">{% csrf_token %}<button>&#199;&#305;k&#305;&#351;</button></form>
+    </aside>
+    <section class="workspace">
+        <header class="app-topbar">
+            <div><h1>{% block page_title %}Ki&#351;isel Sayfam{% endblock %}</h1><span>T&#304;SK&#304; Personel &#304;zin &#304;&#351;lemleri</span></div>
+            <div class="topbar-account">
+                {% for vekalet in aktif_vekaletler %}
+                    <span class="proxy-chip" title="{{ vekalet.baslangic_tarihi|date:'d.m.Y' }} - {{ vekalet.bitis_tarihi|date:'d.m.Y' }} tarihleri arasında aktif vekâlet">
+                        &#8646; Aktif vekil: <b>{{ vekalet.asil_kullanici.get_full_name|default:vekalet.asil_kullanici.username|ad_soyad_yazimi }}</b> yerine
+                    </span>
+                {% endfor %}
+                <div class="user-chip"><span>{{ request.user.username|slice:":2"|upper }}</span>{{ request.user.get_full_name|default:request.user.username }}</div>
+            </div>
+        </header>
+        <main class="page">
+            {% if messages %}<div class="toast-stack">{% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </section>
+</body>
+</html>
