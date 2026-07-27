@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+﻿from datetime import date, timedelta
 from decimal import Decimal
 import re
 import unicodedata
@@ -15,25 +15,75 @@ from .forms import IzinEvrakForm, TcSorguForm
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from .models import GorevBirimiImzaci, HakEdilenIzin, ImzaciVekaleti, IzinTalebi, IzinBildirimKapatma, IzinIslemGecmisi, KullanilanIzin, Personel, PortalAyar, PortalPersonel, YonetimYetkisi
+from .models import GorevBirimiImzaci, HakEdilenIzin, ImzaciVekaleti, IsciPersonel, IzinTalebi, IzinBildirimKapatma, IzinIslemGecmisi, KaynakAltBirim, KaynakGorevBirimi, KullanilanIzin, Personel, PortalAyar, PortalIzinHakki, PortalKullanilanIzin, PortalPersonel, SirketPersonel, YonetimYetkisi
 from .document_exports import izin_excel_olustur, izin_pdf_olustur
 
 EVRAK_TIPLERI = {
     "memur": {"baslik": "\u0130zin Evrak\u0131 (Memur)", "calisan_tipi": "Memur", "tip_kodu": "MEMUR", "aktif": True},
-    "isci": {"baslik": "\u0130zin Evrak\u0131 (\u0130\u015f\u00e7i)", "calisan_tipi": "\u0130\u015f\u00e7i", "tip_kodu": "ISCI", "aktif": False},
-    "sirket": {"baslik": "\u0130zin Evrak\u0131 (\u015eirket)", "calisan_tipi": "\u015eirket", "tip_kodu": "SIRKET", "aktif": False},
+    "isci": {"baslik": "\u0130zin Evrak\u0131 (\u0130\u015f\u00e7i)", "calisan_tipi": "\u0130\u015f\u00e7i", "tip_kodu": "ISCI", "aktif": True},
+    "sirket": {"baslik": "\u0130zin Evrak\u0131 (\u015eirket)", "calisan_tipi": "\u015eirket", "tip_kodu": "SIRKET", "aktif": True},
+}
+
+PERSONEL_TIPI_MODELLERI = {
+    "MEMUR": Personel,
+    "ISCI": IsciPersonel,
+    "SIRKET": SirketPersonel,
+}
+PERSONEL_TIPI_SLUG = {"MEMUR": "memur", "ISCI": "isci", "SIRKET": "sirket"}
+PERSONEL_TIPI_ETIKET = {"MEMUR": "Memur", "ISCI": "İşçi", "SIRKET": "Şirket"}
+ISLETME_DAIRESI_ADI = "İşletmeler Dairesi Başkanlığı"
+ISLETME_YONETIM_ALT_KODLARI = ("ISL-01", "ISL-02", "ISL-03", "ISL-04")
+ISLETME_ALT_BIRIM_GRUPLARI = {
+    "ISL-01": {
+        "ad": "İşletme Koordinasyon Şube Müdürlüğü",
+        "on_ek": "isletme koordinasyon sube mudurlugu",
+        "ilceler": (),
+    },
+    "ISL-02": {
+        "ad": "Merkez İlçeleri İşletme Şube Müdürlüğü",
+        "on_ek": "merkez ilceleri isletme sube mudurlugu",
+        "ilceler": ("Ortahisar", "Maçka"),
+    },
+    "ISL-03": {
+        "ad": "Doğu İlçeleri İşletme Şube Müdürlüğü",
+        "on_ek": "dogu ilceleri isletme sube mudurlugu",
+        "ilceler": ("Araklı", "Arsin", "Çaykara", "Dernekpazarı", "Hayrat", "Köprübaşı", "Of", "Sürmene", "Yomra"),
+    },
+    "ISL-04": {
+        "ad": "Batı İlçeleri İşletme Şube Müdürlüğü",
+        "on_ek": "bati ilceleri isletme sube mudurlugu",
+        "ilceler": ("Akçaabat", "Beşikdüzü", "Çarşıbaşı", "Düzköy", "Şalpazarı", "Tonya", "Vakfıkebir"),
+    },
 }
 
 
 def _normalize(text):
-    text = (text or "").replace("\u0130", "i").replace("I", "i").lower().strip()
+    text = (text or "").replace("\u0130", "i").replace("I", "i").replace("\u0131", "i").lower().strip()
     text = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in text if not unicodedata.combining(ch))
 
 
-def _personel_veri_modeli():
+def _personel_veri_modeli(personel_tipi=None):
     """Aktarım yapıldıktan sonra portal yalnızca kendi personel kartlarını kullanır."""
     return PortalPersonel if PortalPersonel.objects.exists() else Personel
+
+
+def _kaynak_personel_modeli(personel_tipi):
+    return PERSONEL_TIPI_MODELLERI.get(personel_tipi, Personel)
+
+
+def _personel_tip_kodu(personel):
+    if isinstance(personel, PortalPersonel):
+        return personel.personel_tipi or "MEMUR"
+    if isinstance(personel, IsciPersonel):
+        return "ISCI"
+    if isinstance(personel, SirketPersonel):
+        return "SIRKET"
+    return "MEMUR"
+
+
+def _personel_tip_slug(personel):
+    return PERSONEL_TIPI_SLUG.get(_personel_tip_kodu(personel), "memur")
 
 
 def _personel_kaynak_id(personel):
@@ -47,12 +97,91 @@ def _talep_personel_idleri(qs):
 
 
 def _personel_kaynak_kaydi(personel):
-    return Personel.objects.filter(id=_personel_kaynak_id(personel)).first()
+    return _kaynak_personel_modeli(_personel_tip_kodu(personel)).objects.filter(id=_personel_kaynak_id(personel)).first()
 
 
-def ozlukten_portala_aktar(kaynak_personel):
+def _kaynak_personel_gorevi(kaynak_personel):
+    for alan in ("gorevi", "fiili_gorevi", "birimdeki_gorevi", "meslek_adi"):
+        deger = (getattr(kaynak_personel, alan, "") or "").strip()
+        if deger:
+            return deger
+    return getattr(kaynak_personel, "unvani", "")
+
+
+def _kullanici_adi_uret(ad, soyad, sicil_no="", zorunlu_sicil=False):
+    taban = _normalize(f"{ad}{soyad}").replace(" ", "").replace(".", "").replace("_", "")
+    taban = re.sub(r"[^a-z0-9]", "", taban) or "personel"
+    if zorunlu_sicil and sicil_no:
+        taban = f"{taban}{re.sub(r'[^0-9a-z]', '', str(sicil_no).lower())}"
+    username = taban
+    sayac = 2
+    while User.objects.filter(username=username).exists():
+        user = User.objects.filter(username=username).first()
+        if user and not zorunlu_sicil and _normalize(user.first_name) == _normalize(ad) and _normalize(user.last_name) == _normalize(soyad):
+            return username
+        username = f"{taban}{sayac}"
+        sayac += 1
+    return username
+
+
+def _portal_kullanici_olustur(portal_personeli):
+    ayni_isim_sayisi = sum(
+        1 for kisi in PortalPersonel.objects.only("ad", "soyad")
+        if _normalize(kisi.ad) == _normalize(portal_personeli.ad)
+        and _normalize(kisi.soyad) == _normalize(portal_personeli.soyad)
+    )
+    username = _kullanici_adi_uret(
+        portal_personeli.ad,
+        portal_personeli.soyad,
+        portal_personeli.sicil_no,
+        zorunlu_sicil=ayni_isim_sayisi > 1,
+    )
+    user, created = User.objects.get_or_create(
+        username=username,
+        defaults={
+            "first_name": portal_personeli.ad,
+            "last_name": portal_personeli.soyad,
+            "is_active": True,
+        },
+    )
+    degisti = False
+    if user.first_name != portal_personeli.ad:
+        user.first_name = portal_personeli.ad
+        degisti = True
+    if user.last_name != portal_personeli.soyad:
+        user.last_name = portal_personeli.soyad
+        degisti = True
+    if not user.is_active:
+        user.is_active = True
+        degisti = True
+    if created or not user.has_usable_password():
+        user.set_password("12345678")
+        degisti = True
+    if degisti:
+        user.save()
+    return user, created
+
+
+def _varsayilan_portal_izin_hakki(portal_personeli):
+    if portal_personeli.personel_tipi == "MEMUR":
+        return None
+    return PortalIzinHakki.objects.get_or_create(
+        personel=portal_personeli,
+        izin_yili=2026,
+        defaults={
+            "hak_edilen_gun": Decimal("10.00"),
+            "gecerlilik_baslangic_tarihi": date(2026, 1, 1),
+            "gecerlilik_bitis_tarihi": date(2028, 1, 1),
+            "ise_baslama_tarihi": portal_personeli.ise_baslama_tarihi,
+        },
+    )
+
+
+def ozlukten_portala_aktar(kaynak_personel, personel_tipi="MEMUR"):
     """Bir özlük kaydını izin portalındaki düzenlenebilir karta kopyalar."""
+    personel_tipi = personel_tipi or _personel_tip_kodu(kaynak_personel)
     defaults = {
+        "personel_tipi": personel_tipi,
         "sicil_no": kaynak_personel.sicil_no,
         "ad": kaynak_personel.ad,
         "soyad": kaynak_personel.soyad,
@@ -61,17 +190,24 @@ def ozlukten_portala_aktar(kaynak_personel):
         "cep_tel": kaynak_personel.cep_tel,
         "gorev_birimi": kaynak_personel.gorev_birimi,
         "alt_birimi": kaynak_personel.alt_birimi,
-        "gorevi": kaynak_personel.gorevi,
+        "gorevi": _kaynak_personel_gorevi(kaynak_personel),
         "durum": kaynak_personel.durum,
         "ise_baslama_tarihi": kaynak_personel.ise_baslama_tarihi,
         "ozluk_senkron_zamani": timezone.now(),
     }
-    return PortalPersonel.objects.update_or_create(source_personel_id=kaynak_personel.id, defaults=defaults)
+    portal_personeli, created = PortalPersonel.objects.update_or_create(
+        personel_tipi=personel_tipi,
+        source_personel_id=kaynak_personel.id,
+        defaults=defaults,
+    )
+    _portal_kullanici_olustur(portal_personeli)
+    _varsayilan_portal_izin_hakki(portal_personeli)
+    return portal_personeli, created
 
 
 def kullanicinin_personeli(user):
     username = (user.username or "").strip()
-    for model in (PortalPersonel, Personel):
+    for model in (PortalPersonel, Personel, IsciPersonel, SirketPersonel):
         if username:
             personel = model.objects.filter(sicil_no=username).first()
             if personel:
@@ -82,19 +218,236 @@ def kullanicinin_personeli(user):
                 return personel
     compact_username = _normalize(username).replace(".", "").replace("_", "").replace(" ", "")
     if compact_username:
-        for model in (PortalPersonel, Personel):
+        for model in (PortalPersonel, Personel, IsciPersonel, SirketPersonel):
             for personel in model.objects.all():
                 compact_name = _normalize(personel.ad + personel.soyad).replace(" ", "")
-                if compact_username == compact_name:
+                compact_with_sicil = compact_name + re.sub(r"[^0-9a-z]", "", str(personel.sicil_no).lower())
+                if compact_username in {compact_name, compact_with_sicil}:
                     return personel
     return None
 
 
+def _kendi_personeli_mi(user, personel):
+    """İzin oluşturma yalnızca oturum sahibinin kendi özlük kartı için yapılabilir."""
+    kendi = kullanicinin_personeli(user)
+    return bool(
+        kendi and personel
+        and _personel_tip_kodu(kendi) == _personel_tip_kodu(personel)
+        and _personel_kaynak_id(kendi) == _personel_kaynak_id(personel)
+    )
 
+
+
+
+
+ORG_PARENT_NORMALIZED = {
+    "1. hukuk musavirligi": "genel mudurluk",
+    "rehberlik ve teftis kurulu baskanligi": "genel mudurluk",
+    "ozel kalem mudurlugu": "genel mudurluk",
+    "genel mudur yardimcisi idari mali": "genel mudurluk",
+    "genel mudur yardimcisi idari ve mali": "genel mudurluk",
+    "genel mudur yardimcisi teknik 1": "genel mudurluk",
+    "genel mudur yardimcisi teknik 2": "genel mudurluk",
+    "insan kaynaklari ve egitim dairesi baskanligi": "genel mudur yardimcisi idari mali",
+    "abone isleri dairesi baskanligi": "genel mudur yardimcisi idari mali",
+    "strateji gelistirme dairesi baskanligi": "genel mudur yardimcisi idari mali",
+    "bilgi islem dairesi baskanligi": "genel mudur yardimcisi idari mali",
+    "isletmeler dairesi baskanligi": "genel mudur yardimcisi teknik 1",
+    "elektrik merkezleri dairesi baskanligi": "genel mudur yardimcisi teknik 1",
+    "icme suyu ve kanalizasyon dairesi baskanligi": "genel mudur yardimcisi teknik 1",
+    "planlama yatirim ve insaat dairesi baskanligi": "genel mudur yardimcisi teknik 2",
+    "destek hizmetleri dairesi baskanligi": "genel mudur yardimcisi teknik 2",
+    "tesisler dairesi baskanligi": "genel mudur yardimcisi teknik 2",
+}
+
+
+def _org_norm(text):
+    text = _normalize(text)
+    text = text.replace("(", " ").replace(")", " ").replace("-", " ")
+    return " ".join(text.split())
+
+
+def _isletme_birimi_mi(birim_adi):
+    return _org_norm(birim_adi) == _org_norm(ISLETME_DAIRESI_ADI)
+
+
+def _isletme_alt_birim_grubu(birim_adi, alt_birim_adi):
+    """İlçe bazlı özlük seçimini dört gerçek İşletmeler şubesinden birine bağlar."""
+    if not _isletme_birimi_mi(birim_adi):
+        return None
+    temiz_ad = re.sub(
+        r"\bMüdürlüğü\s+Müdürlüğü\b",
+        "Müdürlüğü",
+        (alt_birim_adi or "").strip(),
+        flags=re.IGNORECASE,
+    )
+    norm = _org_norm(temiz_ad)
+    for kod, grup in ISLETME_ALT_BIRIM_GRUPLARI.items():
+        if norm.startswith(grup["on_ek"]):
+            return kod
+    return None
+
+
+def _isletme_kanonik_alt_birim_adi(birim_adi, alt_birim_adi):
+    kod = _isletme_alt_birim_grubu(birim_adi, alt_birim_adi)
+    return ISLETME_ALT_BIRIM_GRUPLARI[kod]["ad"] if kod else (alt_birim_adi or "").strip()
+
+
+def _isletme_org_gorunen_ad(birim_adi, alt_birim_adi):
+    kod = _isletme_alt_birim_grubu(birim_adi, alt_birim_adi)
+    if not kod:
+        return alt_birim_adi
+    grup = ISLETME_ALT_BIRIM_GRUPLARI[kod]
+    if not grup["ilceler"]:
+        return grup["ad"]
+    return f"{grup['ad']} ({', '.join(grup['ilceler'])})"
+
+
+def _kaynak_parent_adi(kaynak_birim, kaynak_map):
+    parent_key = ORG_PARENT_NORMALIZED.get(_org_norm(kaynak_birim.ad))
+    if not parent_key:
+        return ""
+    parent = kaynak_map.get(parent_key)
+    return parent.ad if parent else ""
+
+
+def _user_for_personel_record(personel):
+    if not personel:
+        return None
+    portal = PortalPersonel.objects.filter(
+        personel_tipi=_personel_tip_kodu(personel),
+        source_personel_id=_personel_kaynak_id(personel),
+    ).first()
+    adaylar = User.objects.filter(is_active=True)
+    if portal:
+        user = adaylar.filter(first_name__iexact=portal.ad, last_name__iexact=portal.soyad).first()
+        if user:
+            return user
+    user = adaylar.filter(first_name__iexact=personel.ad, last_name__iexact=personel.soyad).first()
+    if user:
+        return user
+    compact = _normalize(f"{personel.ad}{personel.soyad}").replace(" ", "")
+    for user in adaylar:
+        if _normalize(user.username).replace(".", "").replace("_", "").replace(" ", "") == compact:
+            return user
+    return None
+
+
+def _kayit_amiri(kayit):
+    if not kayit:
+        return None
+    if kayit.alt_birim_adi:
+        return kayit.sube_muduru or kayit.amir_kullanici or kayit.daire_baskani
+    return kayit.daire_baskani or kayit.amir_kullanici or kayit.sube_muduru
+
+
+def _kayit_rolu(kayit, alt_mi=False):
+    if alt_mi or (kayit and kayit.alt_birim_adi):
+        return "\u015eube M\u00fcd\u00fcr\u00fc"
+    tur = (kayit.birim_turu or "").upper() if kayit else ""
+    ad = _org_norm(kayit.birim_adi if kayit else "")
+    if tur == "GENEL_MUDURLUK":
+        return "Genel M\u00fcd\u00fcr"
+    if tur == "GENEL_MUDUR_YARDIMCILIGI":
+        return "Genel M\u00fcd\u00fcr Yard\u0131mc\u0131s\u0131"
+    if tur == "DAIRE_BASKANLIGI":
+        return "Daire Ba\u015fkan\u0131"
+    if "hukuk" in ad:
+        return "1. Hukuk M\u00fc\u015faviri"
+    if "teftis" in ad:
+        return "Kurul Ba\u015fkan\u0131"
+    if "ozel kalem" in ad:
+        return "\u00d6zel Kalem M\u00fcd\u00fcr\u00fc"
+    return "Birim Amiri"
+
+
+def _personel_gorev_unvan_metni(personel):
+    """Personelin görev/ünvan metinlerini tek normalize alanda toplar."""
+    if not personel:
+        return ""
+    parcalar = []
+    for alan in ("unvan", "gorevi", "fiili_gorevi", "kadro_unvani"):
+        deger = getattr(personel, alan, "")
+        if hasattr(deger, "ad"):
+            deger = deger.ad
+        if deger:
+            parcalar.append(str(deger))
+    return _org_norm(" ".join(parcalar))
+
+
+def _personel_sube_muduru_mu(personel):
+    metin = _personel_gorev_unvan_metni(personel)
+    return "sube muduru" in metin or "sube mudur" in metin
+
+
+def _personel_daire_baskani_mu(personel):
+    metin = _personel_gorev_unvan_metni(personel)
+    return "daire baskani" in metin or "daire baskan" in metin
+
+
+def _personel_genel_mudur_yardimcisi_mu(personel):
+    metin = _personel_gorev_unvan_metni(personel)
+    return "genel mudur yardimcisi" in metin
 
 
 def gorev_birimlerini_senkronla():
+    kaynaklar = list(KaynakGorevBirimi.objects.select_related("amir_personel").prefetch_related("alt_birimler__amir_personel").all())
+    kaynak_map = {_org_norm(k.ad): k for k in kaynaklar}
     mevcut = set()
+    if kaynaklar:
+        for kaynak in kaynaklar:
+            birim = (kaynak.ad or "").strip()
+            if not birim:
+                continue
+            ust_birim = _kaynak_parent_adi(kaynak, kaynak_map)
+            amir_user = _user_for_personel_record(kaynak.amir_personel)
+            kayit, _ = GorevBirimiImzaci.objects.get_or_create(birim_adi=birim, alt_birim_adi="")
+            if not amir_user:
+                amir_user = kayit.amir_kullanici or kayit.daire_baskani or kayit.sube_muduru
+            kayit.birim_turu = kaynak.birim_turu or "DIGER"
+            kayit.ust_birim_adi = ust_birim
+            kayit.amir_kullanici = amir_user
+            kayit.daire_baskani = amir_user
+            kayit.sube_muduru = None
+            kayit.aktif_mi = bool(kaynak.aktif_mi)
+            kayit.save(update_fields=["birim_turu", "ust_birim_adi", "amir_kullanici", "daire_baskani", "sube_muduru", "aktif_mi", "guncelleme_zamani"])
+            mevcut.add((birim, ""))
+            alt_birimler = list(kaynak.alt_birimler.all())
+            if _isletme_birimi_mi(birim):
+                alt_birimler = [
+                    alt
+                    for alt in alt_birimler
+                    if (alt.kod or "").strip().upper() in ISLETME_YONETIM_ALT_KODLARI
+                ]
+                alt_birimler.sort(
+                    key=lambda alt: ISLETME_YONETIM_ALT_KODLARI.index((alt.kod or "").strip().upper())
+                )
+            for alt in alt_birimler:
+                alt_ad = (alt.ad or "").strip()
+                if not alt_ad:
+                    continue
+                if _isletme_birimi_mi(birim):
+                    alt_ad = _isletme_kanonik_alt_birim_adi(birim, alt_ad)
+                alt_user = _user_for_personel_record(alt.amir_personel)
+                alt_kayit, _ = GorevBirimiImzaci.objects.get_or_create(birim_adi=birim, alt_birim_adi=alt_ad)
+                if not alt_user:
+                    alt_user = alt_kayit.amir_kullanici or alt_kayit.sube_muduru or alt_kayit.daire_baskani
+                alt_kayit.birim_turu = "ALT_BIRIM"
+                alt_kayit.ust_birim_adi = birim
+                alt_kayit.amir_kullanici = alt_user
+                alt_kayit.sube_muduru = alt_user
+                alt_kayit.daire_baskani = None
+                alt_kayit.aktif_mi = bool(alt.aktif_mi and kaynak.aktif_mi)
+                alt_kayit.save(update_fields=["birim_turu", "ust_birim_adi", "amir_kullanici", "daire_baskani", "sube_muduru", "aktif_mi", "guncelleme_zamani"])
+                mevcut.add((birim, alt_ad))
+        for kayit in GorevBirimiImzaci.objects.all():
+            anahtar = (kayit.birim_adi, kayit.alt_birim_adi)
+            aktif_olmali = anahtar in mevcut
+            if kayit.aktif_mi != aktif_olmali:
+                kayit.aktif_mi = aktif_olmali
+                kayit.save(update_fields=["aktif_mi", "guncelleme_zamani"])
+        return mevcut
+
     for row in _personel_veri_modeli().objects.values("gorev_birimi", "alt_birimi").distinct():
         birim = (row.get("gorev_birimi") or "").strip()
         alt = (row.get("alt_birimi") or "").strip()
@@ -102,7 +455,6 @@ def gorev_birimlerini_senkronla():
             continue
         mevcut.add((birim, alt))
         GorevBirimiImzaci.objects.get_or_create(birim_adi=birim, alt_birim_adi=alt)
-    # ?zl?kte art?k olmayanlar? silmiyoruz; yanl??l?kla imzac? kayb? olmas?n diye pasife de alm?yoruz.
     return mevcut
 
 def sonraki_izin_evrak_no(yil=None):
@@ -159,54 +511,182 @@ def _imzaci_rol_ve_kullanici(rol, user, tarih):
     return rol, user
 
 
+def _birim_kaydi(birim_adi, alt_birim_adi=""):
+    if alt_birim_adi:
+        alt_birim_adi = _isletme_kanonik_alt_birim_adi(birim_adi, alt_birim_adi)
+    return GorevBirimiImzaci.objects.filter(
+        birim_adi=birim_adi or "",
+        alt_birim_adi=alt_birim_adi or "",
+        aktif_mi=True,
+    ).select_related("amir_kullanici", "daire_baskani", "sube_muduru").first()
+
+
+def _ust_birim_kaydi(kayit):
+    if not kayit or not kayit.ust_birim_adi:
+        return None
+    return _birim_kaydi(kayit.ust_birim_adi, "")
+
+
+def _ekle_imzaci(liste, kayit, tarih, rol=None):
+    user = _kayit_amiri(kayit)
+    if not user:
+        return
+    rol = rol or _kayit_rolu(kayit)
+    rol, user = _imzaci_rol_ve_kullanici(rol, user, tarih)
+    if not any(mevcut_user and mevcut_user.id == user.id for _, mevcut_user in liste):
+        liste.append((rol, user))
+
+
+def _gorev_birimi_sira_degeri(ad):
+    norm = _org_norm(ad)
+    siralar = {
+        "genel mudurluk": 0,
+        "ozel kalem mudurlugu": 10,
+        "rehberlik ve teftis kurulu baskanligi": 11,
+        "1. hukuk musavirligi": 12,
+        "genel mudur yardimcisi idari mali": 20,
+        "genel mudur yardimcisi idari ve mali": 20,
+        "insan kaynaklari ve egitim dairesi baskanligi": 21,
+        "abone isleri dairesi baskanligi": 22,
+        "strateji gelistirme dairesi baskanligi": 23,
+        "bilgi islem dairesi baskanligi": 24,
+        "genel mudur yardimcisi teknik 1": 40,
+        "isletmeler dairesi baskanligi": 41,
+        "isletme koordinasyon sube mudurlugu": 410,
+        "merkez ilceleri isletme sube mudurlugu": 411,
+        "dogu ilceleri isletme sube mudurlugu": 412,
+        "bati ilceleri isletme sube mudurlugu": 413,
+        "elektrik merkezleri dairesi baskanligi": 42,
+        "icme suyu ve kanalizasyon dairesi baskanligi": 43,
+        "genel mudur yardimcisi teknik 2": 60,
+        "planlama yatirim ve insaat dairesi baskanligi": 61,
+        "destek hizmetleri dairesi baskanligi": 62,
+        "tesisler dairesi baskanligi": 63,
+    }
+    return siralar.get(norm, 500)
+
+
+def _gorev_birimi_agaci(kayitlar):
+    """Görev birimi imzacı kayıtlarını özlükteki gibi katmanlı organizasyon ağacına çevirir."""
+    node_map = {}
+    for kayit in kayitlar:
+        key = f"{kayit.birim_adi}||{kayit.alt_birim_adi or ''}"
+        alt_mi = bool(kayit.alt_birim_adi)
+        secili = kayit.sube_muduru if alt_mi else kayit.daire_baskani
+        node_map[key] = {
+            "key": key.replace(" ", "_").replace("/", "_").replace("|", "_"),
+            "kayit": kayit,
+            "title": (
+                _isletme_org_gorunen_ad(kayit.birim_adi, kayit.alt_birim_adi)
+                if alt_mi
+                else kayit.birim_adi
+            ),
+            "subtitle": kayit.birim_adi if alt_mi else "",
+            "type_label": _kayit_rolu(kayit, alt_mi=alt_mi) if alt_mi else _kayit_rolu(kayit),
+            "field_name": f"sube_{kayit.id}" if alt_mi else f"daire_{kayit.id}",
+            "other_field_name": f"daire_{kayit.id}" if alt_mi else f"sube_{kayit.id}",
+            "selected_user": secili,
+            "selected_user_id": secili.id if secili else "",
+            "children": [],
+            "depth": 0,
+            "order": _gorev_birimi_sira_degeri(kayit.alt_birim_adi or kayit.birim_adi),
+            "is_alt": alt_mi,
+        }
+
+    roots = []
+    for node in node_map.values():
+        kayit = node["kayit"]
+        if kayit.alt_birim_adi:
+            parent_key = f"{kayit.birim_adi}||"
+        elif kayit.ust_birim_adi:
+            parent_key = f"{kayit.ust_birim_adi}||"
+        else:
+            parent_key = ""
+
+        parent = node_map.get(parent_key)
+        if parent and parent is not node:
+            parent["children"].append(node)
+        else:
+            roots.append(node)
+
+    def sirala_ve_derinlik(nodes, depth=0):
+        nodes.sort(key=lambda n: (n["order"], _normalize(n["title"])))
+        for node in nodes:
+            node["depth"] = depth
+            sirala_ve_derinlik(node["children"], depth + 1)
+
+    sirala_ve_derinlik(roots)
+    return roots
+
+
 def imzacilari_bul(personel, tarih=None):
     tarih = tarih or timezone.localdate()
+    if not personel:
+        return []
     birim = (personel.gorev_birimi or "").strip()
     alt = (getattr(personel, "alt_birimi", "") or "").strip()
-    parent = GorevBirimiImzaci.objects.filter(birim_adi=birim, alt_birim_adi="", aktif_mi=True).select_related("daire_baskani", "sube_muduru").first()
-    child = None
-    if alt:
-        child = GorevBirimiImzaci.objects.filter(birim_adi=birim, alt_birim_adi=alt, aktif_mi=True).select_related("daire_baskani", "sube_muduru").first()
+    ana = _birim_kaydi(birim, "")
+    alt_kayit = _birim_kaydi(birim, alt) if alt else None
+    genel_mudur = GorevBirimiImzaci.objects.filter(birim_turu="GENEL_MUDURLUK", aktif_mi=True).select_related("amir_kullanici", "daire_baskani", "sube_muduru").first()
+    personel_user = _user_for_personel_record(_personel_kaynak_kaydi(personel) or personel)
+    daire_baskani_mu = _personel_daire_baskani_mu(personel)
+    genel_mudur_yardimcisi_mu = _personel_genel_mudur_yardimcisi_mu(personel)
     imzacilar = []
-    if child and child.sube_muduru_id:
-        imzacilar.append(_imzaci_rol_ve_kullanici("Şube Müdürü", child.sube_muduru, tarih))
-    daire_user = (child.daire_baskani if child and child.daire_baskani_id else None) or (parent.daire_baskani if parent and parent.daire_baskani_id else None)
-    if daire_user:
-        imzacilar.append(_imzaci_rol_ve_kullanici("Daire Başkanı", daire_user, tarih))
-    # Ayn? ki?i iki role denk gelirse tekrar g?stermeyelim.
-    # Genel Müdürlük, ana birim olmasına rağmen daire başkanlığı değildir.
-    # Bu nedenle aynı kayıt yapısı kullanılsa da evraktaki imza rolünü
-    # doğru unvanla gösteriyoruz.
-    if daire_user and "genel mudur" in _normalize(birim):
-        mevcut_rol, mevcut_user = imzacilar[-1]
-        imzacilar[-1] = ("Genel Müdür V." if mevcut_rol.endswith("V.") else "Genel Müdür", mevcut_user)
 
-    temiz = []
-    seen = set()
-    for rol, user in imzacilar:
-        if user and user.id not in seen:
-            temiz.append((rol, user))
-            seen.add(user.id)
-    return temiz
+    if alt_kayit:
+        alt_amir = _kayit_amiri(alt_kayit)
+        secili_sube_muduru_mu = bool(
+            personel_user
+            and GorevBirimiImzaci.objects.filter(
+                birim_adi=birim,
+                sube_muduru=personel_user,
+                aktif_mi=True,
+            ).exclude(alt_birim_adi="").exists()
+        )
+        if secili_sube_muduru_mu or (personel_user and alt_amir and personel_user.id == alt_amir.id):
+            _ekle_imzaci(imzacilar, ana, tarih)
+            _ekle_imzaci(imzacilar, _ust_birim_kaydi(ana), tarih)
+        else:
+            _ekle_imzaci(imzacilar, alt_kayit, tarih, "\u015eube M\u00fcd\u00fcr\u00fc")
+            _ekle_imzaci(imzacilar, ana, tarih)
+        return imzacilar
 
+    ana_amir = _kayit_amiri(ana)
+    if daire_baskani_mu or genel_mudur_yardimcisi_mu or (personel_user and ana_amir and personel_user.id == ana_amir.id):
+        tur = (ana.birim_turu or "").upper() if ana else ""
+        if daire_baskani_mu or tur == "DAIRE_BASKANLIGI":
+            _ekle_imzaci(imzacilar, _ust_birim_kaydi(ana), tarih)
+            _ekle_imzaci(imzacilar, genel_mudur, tarih)
+        elif genel_mudur_yardimcisi_mu or tur in {"GENEL_MUDUR_YARDIMCILIGI", "DOGRU_GENEL_MUDURLUK", "DIGER"}:
+            _ekle_imzaci(imzacilar, genel_mudur, tarih)
+        return imzacilar
+
+    _ekle_imzaci(imzacilar, ana, tarih)
+    return imzacilar
 
 def imzaci_metni(personel, tarih=None):
     imzacilar = imzacilari_bul(personel, tarih)
     if not imzacilar:
-        return "?mzac? tan?mlanmam??"
+        return "\u0130mzac\u0131 tan\u0131mlanmam\u0131\u015f"
     return "\n".join(f"{rol}: {_user_label(user)}" for rol, user in imzacilar)
 
 
 def talep_personeli(talep):
     return (
-        PortalPersonel.objects.filter(source_personel_id=talep.personel_id).first()
-        or Personel.objects.filter(id=talep.personel_id).first()
+        PortalPersonel.objects.filter(personel_tipi=talep.personel_tipi, source_personel_id=talep.personel_id).first()
+        or _kaynak_personel_modeli(talep.personel_tipi).objects.filter(id=talep.personel_id).first()
     )
 
 
 def talep_imzacilari(talep):
     personel = talep_personeli(talep)
     return imzacilari_bul(personel, talep.kurum_kayit_tarihi or timezone.localdate()) if personel else []
+
+
+def talep_aktif_imzacilari(talep):
+    """Talep sahibini ve kontrol parafını veren kişiyi tekrar imza görevine düşürmez."""
+    atlanacaklar = {talep.kullanici_id, talep.kontrol_eden_id}
+    return [(rol, user) for rol, user in talep_imzacilari(talep) if user and user.id not in atlanacaklar]
 
 
 def goreve_baslama_tarihi(talep):
@@ -221,15 +701,20 @@ def goreve_baslama_tarihi(talep):
 
 
 def kontrol_edeni_bul(personel_tipi):
-    ayar = PortalAyar.aktif()
+    """Personel tipi i?in tek ge?erli kontrol edeni kullan?c? yetkilerinden bulur."""
     alan = {
-        "MEMUR": "kontrol_eden_memur",
-        "ISCI": "kontrol_eden_isci",
-        "SIRKET": "kontrol_eden_sirket",
-    }.get(personel_tipi, "kontrol_eden_memur")
-    kontrol_eden = getattr(ayar, alan, None)
-    # Eski ayar, geçiş sürecinde yalnızca memur için güvenli geri uyumluluk sağlar.
-    return kontrol_eden or (ayar.kontrol_eden if personel_tipi == "MEMUR" else None)
+        "MEMUR": "memur_kontrol_eden",
+        "ISCI": "isci_kontrol_eden",
+        "SIRKET": "sirket_kontrol_eden",
+    }.get(personel_tipi, "memur_kontrol_eden")
+    yetki = (
+        YonetimYetkisi.objects
+        .select_related("kullanici")
+        .filter(aktif_mi=True, kullanici__is_active=True, **{alan: True})
+        .order_by("guncelleme_zamani", "id")
+        .last()
+    )
+    return yetki.kullanici if yetki else None
 
 
 def _islem_gecmisi_ekle(talep, kullanici, islem, rol="", aciklama=""):
@@ -241,7 +726,34 @@ def _islem_gecmisi_ekle(talep, kullanici, islem, rol="", aciklama=""):
         aciklama=aciklama[:300],
     )
 
+def _teklif_parafi_verildi_mi(talep):
+    """Talep sahibinin son onaya sunmadan sonraki ilk parafı verilmiş mi?"""
+    if getattr(talep, "imza_sirasi", 0) > 0:
+        return True
+    qs = talep.islem_gecmisi.filter(islem="IMZA", rol="Teklif Eden")
+    son_onaya_sunma = talep.islem_gecmisi.filter(islem="ONAYA_SUNULDU").order_by("-tarih", "-id").first()
+    if son_onaya_sunma:
+        qs = qs.filter(tarih__gt=son_onaya_sunma.tarih)
+    return qs.exists()
 
+PERSONEL_TIPI_PREFIX = {"MEMUR": "memur", "ISCI": "isci", "SIRKET": "sirket"}
+TIP_BAZLI_YETKI_EYLEMLERI = (
+    "izin_goruntuleme",
+    "izin_arama",
+    "kontrol_eden",
+    "evrak_geri_cekme",
+    "sahibine_iade",
+    "izin_silme",
+    "tamamlanan_izin_bildirimi",
+)
+ESKI_GENEL_YETKI_KARSILIKLARI = {
+    "izin_goruntuleme": ("tum_izinleri_goruntuleme",),
+    "izin_arama": ("tum_izinleri_goruntuleme", "evrak_yonetimi"),
+    "evrak_geri_cekme": ("evrak_geri_cekme",),
+    "sahibine_iade": ("sahibine_iade",),
+    "izin_silme": ("izin_silme",),
+    "tamamlanan_izin_bildirimi": ("tamamlanan_izin_bildirimi",),
+}
 YONETIM_YETKI_ALANLARI = (
     "evrak_yonetimi",
     "tum_izinleri_goruntuleme",
@@ -253,8 +765,13 @@ YONETIM_YETKI_ALANLARI = (
     "izin_silme",
     "tamamlanan_izin_bildirimi",
     "birim_ve_vekalet_yonetimi",
+    "memur_izin_goruntuleme", "isci_izin_goruntuleme", "sirket_izin_goruntuleme",
+    "memur_izin_arama", "isci_izin_arama", "sirket_izin_arama",
+    "memur_evrak_geri_cekme", "isci_evrak_geri_cekme", "sirket_evrak_geri_cekme",
+    "memur_sahibine_iade", "isci_sahibine_iade", "sirket_sahibine_iade",
+    "memur_izin_silme", "isci_izin_silme", "sirket_izin_silme",
+    "memur_tamamlanan_izin_bildirimi", "isci_tamamlanan_izin_bildirimi", "sirket_tamamlanan_izin_bildirimi",
 )
-
 
 def _kullanici_yetkisi(user):
     if not user.is_authenticated:
@@ -264,6 +781,26 @@ def _kullanici_yetkisi(user):
     except YonetimYetkisi.DoesNotExist:
         return None
     return yetki if yetki.aktif_mi else None
+
+
+def _tamamlanan_bildirim_filtresi(user):
+    """
+    Tamamlanan evrak bildirimleri yönetici/staff olma durumundan bağımsızdır.
+
+    Her kullanıcı kendi evrakını ve kontrol ettiği evrakı görür. Bunun dışındaki
+    bildirimler yalnızca Kullanıcı Yetkileri ekranında açıkça seçilen genel veya
+    personel tipi bazlı "Tamamlanan bildirimleri al" yetkileriyle açılır.
+    """
+    yetki = _kullanici_yetkisi(user)
+    if yetki and yetki.tamamlanan_izin_bildirimi:
+        return None
+
+    filtre = Q(kullanici=user) | Q(kontrol_eden=user)
+    if yetki:
+        for personel_tipi, prefix in PERSONEL_TIPI_PREFIX.items():
+            if getattr(yetki, f"{prefix}_tamamlanan_izin_bildirimi", False):
+                filtre |= Q(personel_tipi=personel_tipi)
+    return filtre
 
 
 def _izin_yetkisi_var(user, alan):
@@ -280,6 +817,46 @@ def _kontrol_yetkisi_var(user, personel_tipi):
         "SIRKET": "sirket_kontrol_eden",
     }.get(personel_tipi, "memur_kontrol_eden")
     return _izin_yetkisi_var(user, alan)
+
+
+def _tip_yetki_alani(personel_tipi, eylem):
+    prefix = PERSONEL_TIPI_PREFIX.get(personel_tipi or "MEMUR", "memur")
+    return f"{prefix}_{eylem}"
+
+
+def _tip_yetkisi_var(user, personel_tipi, eylem):
+    """Memur/işçi/şirket bazlı evrak yetkisi."""
+    if user.is_authenticated and (user.is_superuser or user.is_staff):
+        return True
+    if eylem == "kontrol_eden":
+        return _kontrol_yetkisi_var(user, personel_tipi)
+    yetki = _kullanici_yetkisi(user)
+    if not yetki:
+        return False
+    alan = _tip_yetki_alani(personel_tipi, eylem)
+    if hasattr(yetki, alan) and getattr(yetki, alan, False):
+        return True
+    return any(getattr(yetki, eski, False) for eski in ESKI_GENEL_YETKI_KARSILIKLARI.get(eylem, ()))
+
+
+def _tip_yetkili_tipler(user, eylem):
+    if user.is_authenticated and (user.is_superuser or user.is_staff):
+        return list(PERSONEL_TIPI_PREFIX.keys())
+    return [tip for tip in PERSONEL_TIPI_PREFIX if _tip_yetkisi_var(user, tip, eylem)]
+
+
+def _genis_izin_arama_yetkisi(user):
+    return bool(
+        user.is_authenticated
+        and (
+            user.is_superuser
+            or user.is_staff
+            or _izin_yetkisi_var(user, "evrak_yonetimi")
+            or _tip_yetkili_tipler(user, "izin_arama")
+            or _tip_yetkili_tipler(user, "izin_goruntuleme")
+            or _kontrol_ettigi_tipler(user)
+        )
+    )
 
 
 def _aktif_vekalet_asilleri(user, tarih=None):
@@ -311,6 +888,7 @@ def _yonettigi_personeller(user, tarih=None):
     if not asil_ids:
         return _personel_veri_modeli().objects.none()
 
+    personel_modeli = _personel_veri_modeli()
     kapsam = Q(pk__in=[])
     # Ana birimdeki daire başkanı, o daireye bağlı tüm şubeleri kapsar.
     for birim in GorevBirimiImzaci.objects.filter(
@@ -321,93 +899,124 @@ def _yonettigi_personeller(user, tarih=None):
     for birim, alt_birim in GorevBirimiImzaci.objects.filter(
         sube_muduru_id__in=asil_ids, aktif_mi=True
     ).exclude(alt_birim_adi="").values_list("birim_adi", "alt_birim_adi"):
-        kapsam |= Q(gorev_birimi=birim, alt_birimi=alt_birim)
-    return _personel_veri_modeli().objects.filter(kapsam)
+        if _isletme_birimi_mi(birim):
+            kanonik_ad = _isletme_kanonik_alt_birim_adi(birim, alt_birim)
+            eslesen_idler = [
+                personel.pk
+                for personel in personel_modeli.objects.filter(gorev_birimi=birim).only("pk", "alt_birimi")
+                if _isletme_kanonik_alt_birim_adi(birim, personel.alt_birimi) == kanonik_ad
+            ]
+            kapsam |= Q(pk__in=eslesen_idler)
+        else:
+            kapsam |= Q(gorev_birimi=birim, alt_birimi=alt_birim)
+    return personel_modeli.objects.filter(kapsam)
 
 
 def _kontrol_ettigi_tipler(user):
-    """Merkezî kontrol edenin aramada görebileceği personel tipleri."""
+    """Kullanıcı yetkilerinden, kişinin kontrolcü olduğu personel tiplerini döndürür."""
     if not user or not user.is_authenticated:
         return []
-    ayar = PortalAyar.aktif()
+    yetki = _kullanici_yetkisi(user)
+    if not yetki:
+        return []
     alanlar = {
-        "MEMUR": "kontrol_eden_memur_id",
-        "ISCI": "kontrol_eden_isci_id",
-        "SIRKET": "kontrol_eden_sirket_id",
+        "MEMUR": "memur_kontrol_eden",
+        "ISCI": "isci_kontrol_eden",
+        "SIRKET": "sirket_kontrol_eden",
     }
-    return [
-        tip for tip, alan in alanlar.items()
-        if getattr(ayar, alan, None) == user.id and _kontrol_yetkisi_var(user, tip)
-    ]
+    return [tip for tip, alan in alanlar.items() if getattr(yetki, alan, False)]
 
 
 def _talep_arama_filtresi(user):
-    """Kullanıcının izin aramasında erişebileceği evrakların filtresi."""
-    if _izin_yetkisi_var(user, "tum_izinleri_goruntuleme"):
-        return Q()
-
-    # Kendi evrakları, aktif görevi, kontrol ettiği evraklar ve geçmişte
-    # paraf/imza attığı tüm evraklar herkes için görünürdür.
-    filtre = (
-        Q(kullanici=user)
-        | Q(kontrol_eden=user)
-        | Q(kimin_uzerinde=user)
-        | Q(islem_gecmisi__kullanici=user)
+    """Aramada yalnızca sahibinin taslağı veya akışta ilerlemiş evraklar gösterilir."""
+    # Onaya sunulmuş fakat teklif sahibi henüz paraflamamış evrak, bir taslak
+    # niteliğindedir: sahibinin görevinde durur; genel arama listesine girmez.
+    # İade/red evrakının paylaşılabilmesi için en az ilk teklif parafı verilmiş
+    # olmalıdır. Böylece sahibinin kendi ilk aşamada reddettiği evrak gereksiz
+    # biçimde yöneticilerin aramasında görünmez.
+    akista_ilerleyen = (
+        Q(durum__in=["IMZA_SURECINDE", "ONAYLANDI"])
+        | Q(
+            durum__in=["IADE_EDILDI", "REDDEDILDI"],
+            islem_gecmisi__islem__in=["IMZA", "KONTROL_PARAFI", "ONAY"],
+        )
     )
-    kontrol_tipleri = _kontrol_ettigi_tipler(user)
-    if kontrol_tipleri:
-        filtre |= Q(personel_tipi__in=kontrol_tipleri)
+    sahibinin_evraklari = (
+        Q(kullanici=user, durum__in=["TASLAK", "IADE_EDILDI", "REDDEDILDI"])
+        | Q(
+            kullanici=user,
+            islem_gecmisi__kullanici=user,
+            islem_gecmisi__islem__in=["IMZA", "KONTROL_PARAFI", "ONAY"],
+        )
+    )
+    # Aktif görev, ilk paraf bekleyen teklif sahibinin kendi evrağı değilse
+    # aramadan da açılabilsin (kontrol eden veya sıradaki imzacı).
+    aktif_gorev = Q(kimin_uzerinde=user) & ~Q(kullanici=user, durum="PARAF_BEKLIYOR")
+    kapsam = Q(kontrol_eden=user) | Q(islem_gecmisi__kullanici=user)
+    tipler = set(_kontrol_ettigi_tipler(user))
+    tipler.update(_tip_yetkili_tipler(user, "izin_goruntuleme"))
+    tipler.update(_tip_yetkili_tipler(user, "izin_arama"))
+    if tipler:
+        kapsam |= Q(personel_tipi__in=list(tipler))
     yonetilenler = _yonettigi_personeller(user)
     if yonetilenler.exists():
-        filtre |= Q(personel_id__in=_talep_personel_idleri(yonetilenler))
-    return filtre
-
+        if yonetilenler.model is PortalPersonel:
+            yonetilen_q = Q(pk__in=[])
+            for tip, source_id in yonetilenler.values_list("personel_tipi", "source_personel_id"):
+                yonetilen_q |= Q(personel_tipi=tip, personel_id=source_id)
+            kapsam |= yonetilen_q
+        else:
+            kapsam |= Q(personel_tipi="MEMUR", personel_id__in=_talep_personel_idleri(yonetilenler))
+    # Tüm izinleri görme yetkisi kapsamı genişletir; ilk parafı bekleyen
+    # evrakları yine aramaya açmaz.
+    if _izin_yetkisi_var(user, "tum_izinleri_goruntuleme"):
+        kapsam = Q()
+    return sahibinin_evraklari | aktif_gorev | (akista_ilerleyen & kapsam)
 
 def _talep_gorme_yetkisi(user, talep):
     if not user or not user.is_authenticated:
         return False
-    if _izin_yetkisi_var(user, "tum_izinleri_goruntuleme"):
-        return True
-    if (
-        talep.kullanici_id == user.id
-        or talep.kontrol_eden_id == user.id
-        or talep.kimin_uzerinde_id == user.id
-        or IzinIslemGecmisi.objects.filter(talep=talep, kullanici=user).exists()
-    ):
-        return True
-    if talep.personel_tipi in _kontrol_ettigi_tipler(user):
-        return True
-    yonetilenler = _yonettigi_personeller(user)
-    if yonetilenler.model is PortalPersonel:
-        return yonetilenler.filter(source_personel_id=talep.personel_id).exists()
-    return yonetilenler.filter(id=talep.personel_id).exists()
-
+    return IzinTalebi.objects.filter(pk=talep.pk).filter(_talep_arama_filtresi(user)).exists()
 
 def _talep_aktif_gorev_yetkisi(user, talep):
     if user.is_superuser or user.is_staff:
         return True
     if talep.durum == "PARAF_BEKLIYOR":
-        return (
-            (talep.kontrol_eden_id == user.id or talep.kimin_uzerinde_id == user.id)
-            and _kontrol_yetkisi_var(user, talep.personel_tipi)
-        )
+        if talep.kimin_uzerinde_id == user.id and talep.kullanici_id == user.id:
+            return True
+        return talep.kimin_uzerinde_id == user.id and _kontrol_yetkisi_var(user, talep.personel_tipi)
     if talep.durum == "IMZA_SURECINDE":
         return talep.kimin_uzerinde_id == user.id
     return False
 
 
+def _talep_silinebilir_mi(user, talep):
+    """Yetkili kullanıcı tip kapsamındaki evrakı; evrak sahibi ise kendi açık evrakını silebilir."""
+    if not user or not user.is_authenticated:
+        return False
+    if _tip_yetkisi_var(user, talep.personel_tipi, "izin_silme"):
+        return True
+    return talep.kullanici_id == user.id and talep.durum in {"TASLAK", "IADE_EDILDI", "REDDEDILDI"}
+
+def _herhangi_tip_yetkisi_var(user, eylemler=None):
+    eylemler = eylemler or TIP_BAZLI_YETKI_EYLEMLERI
+    return any(_tip_yetkili_tipler(user, eylem) for eylem in eylemler)
+
+
 def _yonetim_erisim_yetkisi(user):
-    if not user.is_authenticated:
+    if not user or not user.is_authenticated:
         return False
     if user.is_superuser or user.is_staff:
         return True
-    return YonetimYetkisi.objects.filter(kullanici=user, aktif_mi=True).filter(
-        Q(evrak_yonetimi=True)
-        | Q(evrak_geri_cekme=True)
-        | Q(sahibine_iade=True)
-        | Q(izin_silme=True)
-        | Q(birim_ve_vekalet_yonetimi=True)
-    ).exists()
+    yetki = _kullanici_yetkisi(user)
+    if not yetki:
+        return False
+    genel = any(getattr(yetki, alan, False) for alan in (
+        "evrak_yonetimi", "tum_izinleri_goruntuleme", "evrak_geri_cekme",
+        "sahibine_iade", "izin_silme", "tamamlanan_izin_bildirimi",
+        "birim_ve_vekalet_yonetimi",
+    ))
+    return genel or _herhangi_tip_yetkisi_var(user)
 
 
 def _tam_yonetim_yetkisi(user):
@@ -415,18 +1024,46 @@ def _tam_yonetim_yetkisi(user):
 
 
 def _evrak_yonetim_yetkisi(user):
-    return (
-        _izin_yetkisi_var(user, "evrak_yonetimi")
-        or _izin_yetkisi_var(user, "evrak_geri_cekme")
-        or _izin_yetkisi_var(user, "sahibine_iade")
-        or _izin_yetkisi_var(user, "izin_silme")
+    return bool(
+        user and user.is_authenticated and (
+            user.is_superuser
+            or user.is_staff
+            or _izin_yetkisi_var(user, "evrak_yonetimi")
+            or _izin_yetkisi_var(user, "evrak_geri_cekme")
+            or _izin_yetkisi_var(user, "sahibine_iade")
+            or _izin_yetkisi_var(user, "izin_silme")
+            or _herhangi_tip_yetkisi_var(user, ("izin_goruntuleme", "izin_arama", "evrak_geri_cekme", "sahibine_iade", "izin_silme"))
+            or _kontrol_ettigi_tipler(user)
+        )
     )
 
 
 def _birim_ve_vekalet_yetkisi(user):
     return _izin_yetkisi_var(user, "birim_ve_vekalet_yonetimi")
 
+
 def izin_ozeti(personel):
+    if _personel_tip_kodu(personel) != "MEMUR":
+        portal_personeli = personel if isinstance(personel, PortalPersonel) else PortalPersonel.objects.filter(
+            personel_tipi=_personel_tip_kodu(personel),
+            source_personel_id=_personel_kaynak_id(personel),
+        ).first()
+        if portal_personeli:
+            _varsayilan_portal_izin_hakki(portal_personeli)
+            haklar = list(PortalIzinHakki.objects.filter(personel=portal_personeli).order_by("-izin_yili"))
+            kullanimlar = PortalKullanilanIzin.objects.filter(
+                personel=portal_personeli,
+                hak_edilen_izin__isnull=False,
+            ).values("hak_edilen_izin_id").annotate(toplam=Sum("kullanilan_gun"))
+            kullanim_map = {row["hak_edilen_izin_id"]: row["toplam"] or Decimal("0.00") for row in kullanimlar}
+            toplam_kalan = Decimal("0.00")
+            for hak in haklar:
+                hak.kullanilan = kullanim_map.get(hak.id, Decimal("0.00"))
+                hak.kalan = (hak.hak_edilen_gun - hak.kullanilan).quantize(Decimal("0.01"))
+                toplam_kalan += hak.kalan
+            return haklar, toplam_kalan.quantize(Decimal("0.01"))
+        return [], Decimal("0.00")
+
     kaynak_id = _personel_kaynak_id(personel)
     haklar = list(HakEdilenIzin.objects.filter(personel_id=kaynak_id).order_by("-izin_yili"))
     kullanimlar = KullanilanIzin.objects.filter(personel_id=kaynak_id, hak_edilen_izin__isnull=False).values("hak_edilen_izin_id").annotate(toplam=Sum("kullanilan_gun"))
@@ -441,12 +1078,56 @@ def izin_ozeti(personel):
 
 def _yillara_gore_haklar(personel, ait_oldugu_yil):
     """Yıllık izin evrakının seçtiği yıl(lar)daki hak edişleri eskiden yeniye döndürür."""
-    kaynak_id = _personel_kaynak_id(personel)
-    qs = HakEdilenIzin.objects.filter(personel_id=kaynak_id)
+    if _personel_tip_kodu(personel) != "MEMUR":
+        portal_personeli = personel if isinstance(personel, PortalPersonel) else PortalPersonel.objects.filter(
+            personel_tipi=_personel_tip_kodu(personel),
+            source_personel_id=_personel_kaynak_id(personel),
+        ).first()
+        qs = PortalIzinHakki.objects.filter(personel=portal_personeli) if portal_personeli else PortalIzinHakki.objects.none()
+    else:
+        kaynak_id = _personel_kaynak_id(personel)
+        qs = HakEdilenIzin.objects.filter(personel_id=kaynak_id)
     yillar = [int(yil) for yil in re.findall(r"\d{4}", ait_oldugu_yil or "")]
     if yillar:
         qs = qs.filter(izin_yili__in=yillar)
     return list(qs.order_by("izin_yili", "id"))
+
+
+def izin_bakiyesi_onaya_sunma_kontrolu(talep, personel):
+    """İzin bakiyesi yalnızca evrak ilk kez onaya sunulurken kontrol edilir."""
+    mesaj = "Seçilen yıl için yeterli izin bakiyesi bulunamadı. Eğer yanlışlık olduğunu düşünüyorsanız İK ile iletişime geçiniz!"
+    if not talep.izin_turu_id or not talep.izin_turu.yillik_izin_mi:
+        return None
+    gun = Decimal(talep.kullanilan_gun or 0)
+    if gun <= 0:
+        return None
+
+    haklar = _yillara_gore_haklar(personel, talep.ait_oldugu_yil)
+    if not haklar:
+        return mesaj
+
+    if _personel_tip_kodu(personel) != "MEMUR":
+        portal_personeli = personel if isinstance(personel, PortalPersonel) else PortalPersonel.objects.filter(
+            personel_tipi=_personel_tip_kodu(personel),
+            source_personel_id=_personel_kaynak_id(personel),
+        ).first()
+        kullanilanlar = PortalKullanilanIzin.objects.filter(
+            personel=portal_personeli,
+            hak_edilen_izin_id__in=[hak.id for hak in haklar],
+        ).values("hak_edilen_izin_id").annotate(toplam=Sum("kullanilan_gun"))
+    else:
+        kullanilanlar = KullanilanIzin.objects.filter(
+            personel_id=_personel_kaynak_id(personel),
+            hak_edilen_izin_id__in=[hak.id for hak in haklar],
+        ).values("hak_edilen_izin_id").annotate(toplam=Sum("kullanilan_gun"))
+
+    kullanilan_map = {row["hak_edilen_izin_id"]: row["toplam"] or Decimal("0.00") for row in kullanilanlar}
+    toplam_kalan = Decimal("0.00")
+    for hak in haklar:
+        toplam_kalan += max(Decimal("0.00"), Decimal(hak.hak_edilen_gun) - Decimal(kullanilan_map.get(hak.id, 0)))
+    if toplam_kalan < gun:
+        return mesaj
+    return None
 
 
 def izni_ozluge_aktar(talep, personel, islemi_yapan=None):
@@ -458,6 +1139,66 @@ def izni_ozluge_aktar(talep, personel, islemi_yapan=None):
 
     gun = Decimal(talep.kullanilan_gun)
     kaynak_id = _personel_kaynak_id(personel)
+    if talep.personel_tipi != "MEMUR":
+        portal_personeli = personel if isinstance(personel, PortalPersonel) else PortalPersonel.objects.filter(
+            personel_tipi=talep.personel_tipi,
+            source_personel_id=kaynak_id,
+        ).first()
+        if not portal_personeli:
+            raise ValueError("Portal personel kartı bulunamadı.")
+        ortak_yerel = {
+            "izin_turu_id": talep.izin_turu_id,
+            "izin_baslangic_tarihi": talep.baslangic_tarihi,
+            "izin_bitis_tarihi": talep.bitis_tarihi,
+            "ise_baslama_tarihi": talep.goreve_baslama_tarihi or portal_personeli.ise_baslama_tarihi,
+            "aciklama": f"İzin Portalı evrakı: {talep.evrak_no}",
+            "olusturan": islemi_yapan,
+        }
+        with transaction.atomic():
+            if talep.izin_turu.yillik_izin_mi:
+                haklar = _yillara_gore_haklar(portal_personeli, talep.ait_oldugu_yil)
+                kullanilanlar = PortalKullanilanIzin.objects.filter(
+                    personel=portal_personeli,
+                    hak_edilen_izin_id__in=[hak.id for hak in haklar],
+                ).values("hak_edilen_izin_id").annotate(toplam=Sum("kullanilan_gun"))
+                kullanilan_map = {row["hak_edilen_izin_id"]: row["toplam"] or Decimal("0.00") for row in kullanilanlar}
+                kalan = gun
+                aktarim_plani = []
+                for hak in haklar:
+                    uygun = max(Decimal("0.00"), Decimal(hak.hak_edilen_gun) - Decimal(kullanilan_map.get(hak.id, 0)))
+                    if uygun <= 0:
+                        continue
+                    parca = min(kalan, uygun)
+                    aktarim_plani.append((hak, parca))
+                    kalan -= parca
+                    if kalan <= 0:
+                        break
+                if kalan > 0:
+                    PortalKullanilanIzin.objects.create(
+                        personel=portal_personeli,
+                        kullanilan_gun=gun,
+                        aciklama=f"İzin Portalı evrakı: {talep.evrak_no} (bakiye/yıl eşleşmesi onaya sunma sonrası değiştiği için hak edişe bağlanmadan işlendi)",
+                        **{k: v for k, v in ortak_yerel.items() if k != "aciklama"},
+                    )
+                else:
+                    for hak, parca in aktarim_plani:
+                        PortalKullanilanIzin.objects.create(
+                            personel=portal_personeli,
+                            hak_edilen_izin=hak,
+                            kullanilan_gun=parca,
+                            **ortak_yerel,
+                        )
+            else:
+                PortalKullanilanIzin.objects.create(
+                    personel=portal_personeli,
+                    kullanilan_gun=gun,
+                    **ortak_yerel,
+                )
+            talep.ozluk_aktarildi_mi = True
+            talep.ozluk_aktarim_tarihi = timezone.now()
+            talep.save(update_fields=["ozluk_aktarildi_mi", "ozluk_aktarim_tarihi"])
+        return
+
     kaynak = Personel.objects.filter(id=kaynak_id).first()
     if not kaynak:
         raise ValueError("Özlükte kaynak personel kaydı bulunamadı.")
@@ -496,18 +1237,27 @@ def izni_ozluge_aktar(talep, personel, islemi_yapan=None):
                 if kalan <= 0:
                     break
             if kalan > 0:
-                raise ValueError("Seçilen yıl için özlükte yeterli izin bakiyesi bulunamadı.")
-            for hak_id, parca in aktarim_plani:
                 KullanilanIzin.objects.create(
                     personel_id=kaynak_id,
                     izin_turu_id=talep.izin_turu_id,
-                    hak_edilen_izin_id=hak_id,
                     izin_baslangic_tarihi=talep.baslangic_tarihi,
                     izin_bitis_tarihi=talep.bitis_tarihi,
-                    kullanilan_gun=parca,
-                    aciklama=f"İzin Portalı evrakı: {talep.evrak_no}",
+                    kullanilan_gun=gun,
+                    aciklama=f"İzin Portalı evrakı: {talep.evrak_no} (bakiye/yıl eşleşmesi onaya sunma sonrası değiştiği için hak edişe bağlanmadan işlendi)",
                     **ortak_kayit,
                 )
+            else:
+                for hak_id, parca in aktarim_plani:
+                    KullanilanIzin.objects.create(
+                        personel_id=kaynak_id,
+                        izin_turu_id=talep.izin_turu_id,
+                        hak_edilen_izin_id=hak_id,
+                        izin_baslangic_tarihi=talep.baslangic_tarihi,
+                        izin_bitis_tarihi=talep.bitis_tarihi,
+                        kullanilan_gun=parca,
+                        aciklama=f"İzin Portalı evrakı: {talep.evrak_no}",
+                        **ortak_kayit,
+                    )
         else:
             KullanilanIzin.objects.create(
                 personel_id=kaynak_id,
@@ -520,6 +1270,7 @@ def izni_ozluge_aktar(talep, personel, islemi_yapan=None):
             )
         talep.ozluk_aktarildi_mi = True
         talep.ozluk_aktarim_tarihi = timezone.now()
+        talep.save(update_fields=["ozluk_aktarildi_mi", "ozluk_aktarim_tarihi"])
 
 
 def _evrak_formu_kwargs(personel, haklar, toplam_kalan, tip="memur", **extra):
@@ -549,14 +1300,17 @@ def _talebi_kaydet(talep, form, *, personel, kullanici, evrak_no, onaya_sun, per
     talep.imza_tamamlanma_tarihi = None
 
     if onaya_sun:
+        bakiye_hatasi = izin_bakiyesi_onaya_sunma_kontrolu(talep, personel)
+        if bakiye_hatasi:
+            return None, bakiye_hatasi
         kontrol_eden = kontrol_edeni_bul(personel_tipi)
         if not kontrol_eden:
             return None, "Kontrol eden personel henüz tanımlanmamış. Lütfen İK birimi ile görüşünüz."
         if not _kontrol_yetkisi_var(kontrol_eden, personel_tipi):
             return None, "Tanımlı kontrol eden personelin bu personel tipi için yetkisi yok. Lütfen İK birimi ile görüşünüz."
-        talep.durum = "PARAF_BEKLIYOR"
         talep.kontrol_eden = kontrol_eden
-        talep.kimin_uzerinde = kontrol_eden
+        talep.durum = "PARAF_BEKLIYOR"
+        talep.kimin_uzerinde = kullanici
     else:
         talep.durum = "TASLAK"
         talep.kontrol_eden = None
@@ -569,7 +1323,6 @@ def _talebi_kaydet(talep, form, *, personel, kullanici, evrak_no, onaya_sun, per
         "Teklif Eden",
     )
     return talep, None
-
 
 def _evrak_tipi_or_404(tip):
     bilgi = EVRAK_TIPLERI.get(tip)
@@ -586,6 +1339,7 @@ def dashboard(request):
     if personel:
         haklar, toplam_kalan = izin_ozeti(personel)
         personel_kaynak_id = _personel_kaynak_id(personel)
+        personel_tipi = _personel_tip_kodu(personel)
         # Bu alan paraf verilen evrakları değil, yalnızca giriş yapan kişinin
         # kendi oluşturup imza süreci tamamlanan izinlerini gösterir.
         son_kullanimlar = [
@@ -598,24 +1352,29 @@ def dashboard(request):
             for talep in IzinTalebi.objects.filter(
                 kullanici=request.user,
                 personel_id=personel_kaynak_id,
+                personel_tipi=personel_tipi,
                 durum="ONAYLANDI",
             ).select_related("izin_turu").order_by("-bitis_tarihi", "-guncelleme_zamani")[:6]
         ]
-        talepler = IzinTalebi.objects.filter(kullanici=request.user, personel_id=personel_kaynak_id)[:6]
+        talepler = IzinTalebi.objects.filter(kullanici=request.user, personel_id=personel_kaynak_id, personel_tipi=personel_tipi)[:6]
     gorev_filtresi = (
         Q(kimin_uzerinde=request.user, durum="IMZA_SURECINDE")
+        | Q(kimin_uzerinde=request.user, kullanici=request.user, durum="PARAF_BEKLIYOR")
         | Q(kullanici=request.user, durum__in=["TASLAK", "IADE_EDILDI", "REDDEDILDI"])
+        | Q(kontrol_eden=request.user, durum="REDDEDILDI", kontrol_tarihi__isnull=False)
+        | Q(kontrol_eden=request.user, durum="REDDEDILDI", islem_gecmisi__islem="KONTROL_PARAFI")
     )
     for tip in ("MEMUR", "ISCI", "SIRKET"):
         if _kontrol_yetkisi_var(request.user, tip):
-            gorev_filtresi |= Q(kontrol_eden=request.user, durum="PARAF_BEKLIYOR", personel_tipi=tip)
+            gorev_filtresi |= Q(kimin_uzerinde=request.user, durum="PARAF_BEKLIYOR", personel_tipi=tip)
     gorevler = IzinTalebi.objects.select_related("izin_turu", "kullanici", "kimin_uzerinde").filter(
         gorev_filtresi
-    ).order_by("-olusturma_zamani")[:25]
+    ).distinct().order_by("-olusturma_zamani")[:25]
 
     imzalananlar_qs = IzinTalebi.objects.select_related("izin_turu", "kullanici").filter(durum="ONAYLANDI")
-    if not _izin_yetkisi_var(request.user, "tamamlanan_izin_bildirimi"):
-        imzalananlar_qs = imzalananlar_qs.filter(kullanici=request.user)
+    bildirim_filtresi = _tamamlanan_bildirim_filtresi(request.user)
+    if bildirim_filtresi is not None:
+        imzalananlar_qs = imzalananlar_qs.filter(bildirim_filtresi)
     imzalananlar = imzalananlar_qs.exclude(
         bildirim_kapatmalari__kullanici=request.user
     ).order_by("-guncelleme_zamani")[:10]
@@ -636,9 +1395,29 @@ def tc_sorgula(request, tip):
         if not bilgi["aktif"]:
             messages.error(request, f"{bilgi['baslik']} i\u00e7in personel kayna\u011f\u0131 hen\u00fcz ba\u011flanmad\u0131.")
         else:
-            personel = _personel_veri_modeli().objects.filter(tc_no=form.cleaned_data["tc_no"]).first()
+            tip_kodu = bilgi["tip_kodu"]
+            tc_no = form.cleaned_data["tc_no"]
+            if PortalPersonel.objects.exists():
+                personel = PortalPersonel.objects.filter(personel_tipi=tip_kodu, tc_no=tc_no).first()
+                farkli_tip = PortalPersonel.objects.filter(tc_no=tc_no).exclude(personel_tipi=tip_kodu).first()
+            else:
+                personel = _kaynak_personel_modeli(tip_kodu).objects.filter(tc_no=tc_no).first()
+                farkli_tip = None
+                for diger_tip, model in PERSONEL_TIPI_MODELLERI.items():
+                    if diger_tip != tip_kodu:
+                        farkli_tip = model.objects.filter(tc_no=tc_no).first()
+                        if farkli_tip:
+                            break
             if personel:
+                if not _kendi_personeli_mi(request.user, personel):
+                    messages.error(request, "Kendi hesabınızla yalnızca kendi T.C. kimlik numaranız için izin evrakı oluşturabilirsiniz.")
+                    return redirect("tc_sorgula", tip=tip)
                 return redirect("izin_evrak", tip=tip, personel_id=personel.id)
+            if farkli_tip:
+                dogru_tip = _personel_tip_kodu(farkli_tip)
+                dogru_slug = PERSONEL_TIPI_SLUG.get(dogru_tip, "memur")
+                messages.error(request, f"Bu T.C. Kimlik No {PERSONEL_TIPI_ETIKET.get(dogru_tip, 'personel')} kaydında görünüyor. Lütfen {EVRAK_TIPLERI[dogru_slug]['baslik']} ekranından devam edin.")
+                return redirect("tc_sorgula", tip=dogru_slug)
             messages.error(request, "Bu T.C. Kimlik No ile kay\u0131tl\u0131 personel bulunamad\u0131.")
     return render(request, "portal/tc_sorgula.html", {"form": form, "tip": tip, "bilgi": bilgi, "personel": personel})
 
@@ -647,19 +1426,27 @@ def tc_sorgula(request, tip):
 def izin_evrak(request, tip, personel_id):
     bilgi = _evrak_tipi_or_404(tip)
     if not bilgi["aktif"]:
-        messages.error(request, f"{bilgi['baslik']} i\u00e7in personel kayna\u011f\u0131 hen\u00fcz ba\u011flanmad\u0131.")
+        messages.error(request, f"{bilgi['baslik']} için personel kaynağı henüz bağlanmadı.")
         return redirect("tc_sorgula", tip=tip)
-    personel = get_object_or_404(_personel_veri_modeli(), id=personel_id)
+    tip_kodu = bilgi["tip_kodu"]
+    if PortalPersonel.objects.exists():
+        personel = get_object_or_404(PortalPersonel, id=personel_id, personel_tipi=tip_kodu)
+    else:
+        personel = get_object_or_404(_kaynak_personel_modeli(tip_kodu), id=personel_id)
+    if not _kendi_personeli_mi(request.user, personel):
+        messages.error(request, "Başka personel adına izin evrakı oluşturamazsınız.")
+        return redirect("tc_sorgula", tip=tip)
     haklar, toplam_kalan = izin_ozeti(personel)
     imzacilar = imzacilari_bul(personel)
     if not haklar or toplam_kalan <= 0:
-        messages.warning(request, "\u0130zin bakiyesi bulunamad\u0131. L\u00fctfen \u0130K birimi ile g\u00f6r\u00fc\u015f\u00fcn\u00fcz.")
+        messages.warning(request, "İzin bakiyesi bulunamadı. Lütfen İK birimi ile görüşünüz.")
     if not imzacilar:
-        messages.warning(request, "Bu personelin birimi i\u00e7in imzac\u0131 tan\u0131mlanmam\u0131\u015f. L\u00fctfen \u0130K birimi ile g\u00f6r\u00fc\u015f\u00fcn\u00fcz.")
+        messages.warning(request, "Bu personelin birimi için imzacı tanımlanmamış. Lütfen İK birimi ile görüşünüz.")
     if request.method == "GET":
         acik_taslak = IzinTalebi.objects.filter(
             kullanici=request.user,
             personel_id=_personel_kaynak_id(personel),
+            personel_tipi=bilgi["tip_kodu"],
             durum="TASLAK",
         ).order_by("-guncelleme_zamani").first()
         if acik_taslak:
@@ -692,18 +1479,19 @@ def izin_evrak(request, tip, personel_id):
             )
             if hata:
                 form.add_error(None, hata)
+                messages.error(request, hata)
             elif taslak:
                 messages.success(request, f"Evrak taslak olarak kaydedildi. Evrak No: {talep.evrak_no}")
                 return redirect("dashboard")
             else:
-                messages.success(request, f"\u0130zin evrak\u0131 paraf kontrol\u00fcne al\u0131nd\u0131. Evrak No: {talep.evrak_no}")
+                messages.success(request, f"İzin evrakı ilk parafınız için size yönlendirildi. Evrak No: {talep.evrak_no}")
                 return redirect("evrak_paraf", talep_id=talep.id)
+        else:
+            messages.error(request, "İzin evrakında hatalı veya eksik alanlar var. Lütfen kırmızı uyarıları kontrol edin.")
     else:
         form = IzinEvrakForm(next_evrak_no=evrak_no, **_evrak_formu_kwargs(personel, haklar, toplam_kalan, tip))
     return render(request, "portal/izin_evrak.html", {"form": form, "personel": personel, "haklar": haklar, "toplam_kalan": toplam_kalan, "tip": tip, "bilgi": bilgi, "imzacilar": imzacilar, "duzenleme": False})
 
-
-@login_required
 def izin_talebi_duzenle(request, talep_id):
     talep = get_object_or_404(IzinTalebi.objects.select_related("izin_turu", "kullanici"), id=talep_id)
     if talep.kullanici_id != request.user.id:
@@ -717,32 +1505,50 @@ def izin_talebi_duzenle(request, talep_id):
     if not personel:
         messages.error(request, "Evrağa bağlı personel kaydı bulunamadı.")
         return redirect("dashboard")
+    if not _kendi_personeli_mi(request.user, personel):
+        messages.error(request, "Bu evrak başka personele ait olduğu için düzenlenemez.")
+        return redirect("dashboard")
     haklar, toplam_kalan = izin_ozeti(personel)
     imzacilar = imzacilari_bul(personel)
+    if request.method == "POST" and request.POST.get("islem") == "sil":
+        if not _talep_silinebilir_mi(request.user, talep):
+            messages.error(request, 'Bu izin evrakını silme yetkiniz yok.')
+            return redirect("dashboard")
+        evrak_no = talep.evrak_no
+        talep.delete()
+        messages.success(request, f'İzin evrakı silindi. Evrak No: {evrak_no}')
+        return redirect("dashboard")
     if request.method == "POST":
         islem = request.POST.get("islem", "onaya_sun")
         taslak = islem == "taslak_kaydet"
+        tip = PERSONEL_TIPI_SLUG.get(talep.personel_tipi, "memur")
         form = IzinEvrakForm(
             request.POST, instance=talep, taslak=taslak, next_evrak_no=talep.evrak_no,
-            **_evrak_formu_kwargs(personel, haklar, toplam_kalan),
+            **_evrak_formu_kwargs(personel, haklar, toplam_kalan, tip),
         )
         if form.is_valid():
-            talep, hata = _talebi_kaydet(
+            kaydedilen_talep, hata = _talebi_kaydet(
                 talep, form, personel=personel, kullanici=request.user,
                 evrak_no=talep.evrak_no, onaya_sun=not taslak, personel_tipi=talep.personel_tipi,
             )
             if hata:
                 form.add_error(None, hata)
+                messages.error(request, hata)
             elif taslak:
+                talep = kaydedilen_talep
                 messages.success(request, "Evrak bilgileri taslak olarak güncellendi.")
                 return redirect("dashboard")
             else:
-                messages.success(request, f"Evrak güncellendi ve paraf kontrolüne yeniden sunuldu. Evrak No: {talep.evrak_no}")
+                talep = kaydedilen_talep
+                messages.success(request, f"Evrak güncellendi ve ilk parafınız için size yönlendirildi. Evrak No: {talep.evrak_no}")
                 return redirect("evrak_paraf", talep_id=talep.id)
+        else:
+            messages.error(request, "İzin evrakında hatalı veya eksik alanlar var. Lütfen kırmızı uyarıları kontrol edin.")
     else:
+        tip = PERSONEL_TIPI_SLUG.get(talep.personel_tipi, "memur")
         form = IzinEvrakForm(
             instance=talep, next_evrak_no=talep.evrak_no,
-            **_evrak_formu_kwargs(personel, haklar, toplam_kalan),
+            **_evrak_formu_kwargs(personel, haklar, toplam_kalan, tip),
         )
     tip = {"MEMUR": "memur", "ISCI": "isci", "SIRKET": "sirket"}.get(talep.personel_tipi, "memur")
     bilgi = _evrak_tipi_or_404(tip)
@@ -750,10 +1556,10 @@ def izin_talebi_duzenle(request, talep_id):
         "form": form, "personel": personel, "haklar": haklar,
         "toplam_kalan": toplam_kalan, "tip": tip, "bilgi": bilgi,
         "imzacilar": imzacilar, "duzenleme": True, "talep": talep,
+        "silinebilir": _talep_silinebilir_mi(request.user, talep),
+        "goreve_baslama_tarihi": goreve_baslama_tarihi(talep),
     })
 
-
-@login_required
 def yeni_talep(request):
     return redirect("izin_menu")
 
@@ -763,8 +1569,9 @@ def izin_bildirimini_kapat(request, talep_id):
     if request.method != "POST":
         return redirect("dashboard")
     qs = IzinTalebi.objects.filter(id=talep_id, durum="ONAYLANDI")
-    if not _izin_yetkisi_var(request.user, "tamamlanan_izin_bildirimi"):
-        qs = qs.filter(kullanici=request.user)
+    bildirim_filtresi = _tamamlanan_bildirim_filtresi(request.user)
+    if bildirim_filtresi is not None:
+        qs = qs.filter(bildirim_filtresi)
     talep = get_object_or_404(qs)
     IzinBildirimKapatma.objects.get_or_create(kullanici=request.user, talep=talep)
     messages.success(request, "Tamamlanan izin evrakı bildirimi kapatıldı.")
@@ -776,8 +1583,9 @@ def izin_bildirimlerini_kapat(request):
     if request.method != "POST":
         return redirect("dashboard")
     qs = IzinTalebi.objects.filter(durum="ONAYLANDI")
-    if not _izin_yetkisi_var(request.user, "tamamlanan_izin_bildirimi"):
-        qs = qs.filter(kullanici=request.user)
+    bildirim_filtresi = _tamamlanan_bildirim_filtresi(request.user)
+    if bildirim_filtresi is not None:
+        qs = qs.filter(bildirim_filtresi)
     talep_ids = qs.values_list("id", flat=True)
     IzinBildirimKapatma.objects.bulk_create(
         [IzinBildirimKapatma(kullanici=request.user, talep_id=talep_id) for talep_id in talep_ids],
@@ -806,39 +1614,52 @@ def yonetim(request):
 @user_passes_test(_tam_yonetim_yetkisi, login_url="dashboard")
 def personel_veri_yonetimi(request):
     """Özlükten seçilerek aktarılan portal personel kartlarını yönetir."""
+    tip = (request.GET.get("tip") or request.POST.get("tip") or "MEMUR").upper()
+    if tip not in PERSONEL_TIPI_MODELLERI:
+        tip = "MEMUR"
+    kaynak_model = _kaynak_personel_modeli(tip)
+
     if request.method == "POST":
         islem = request.POST.get("islem")
-        if islem in {"tumunu_aktar", "secilenleri_guncelle"}:
+        if islem in {"tumunu_aktar", "secilenleri_guncelle", "tum_tipleri_aktar"}:
             if islem == "tumunu_aktar":
-                kaynaklar = Personel.objects.select_related("unvan").all()
+                kaynaklar = kaynak_model.objects.select_related("unvan").all()
             else:
-                source_ids = [int(value) for value in request.POST.getlist("source_ids") if value.isdigit()]
-                kaynaklar = Personel.objects.select_related("unvan").filter(id__in=source_ids)
+                kaynaklar = []
+                if islem == "tum_tipleri_aktar":
+                    for kaynak_tip, model in PERSONEL_TIPI_MODELLERI.items():
+                        for kaynak in model.objects.select_related("unvan").all():
+                            kaynaklar.append((kaynak_tip, kaynak))
+                else:
+                    source_ids = [int(value) for value in request.POST.getlist("source_ids") if value.isdigit()]
+                    kaynaklar = [(tip, kaynak) for kaynak in kaynak_model.objects.select_related("unvan").filter(id__in=source_ids)]
             aktarilan = 0
-            for kaynak in kaynaklar:
-                ozlukten_portala_aktar(kaynak)
+            for item in kaynaklar:
+                kaynak_tip, kaynak = item if isinstance(item, tuple) else (tip, item)
+                ozlukten_portala_aktar(kaynak, kaynak_tip)
                 aktarilan += 1
             if aktarilan:
-                messages.success(request, f"{aktarilan} personel özlükten izin portalına aktarıldı/güncellendi.")
+                messages.success(request, f"{aktarilan} personel özlükten izin portalına aktarıldı/güncellendi. Kullanıcı adları oluşturuldu, ilk şifreler 12345678.")
             else:
                 messages.warning(request, "Aktarmak için en az bir personel seçin.")
-            return redirect("personel_veri_yonetimi")
+            return redirect(f"{request.path}?tip={tip}")
 
         if islem == "yerel_kaydet":
             source_id = request.POST.get("source_personel_id")
-            kaynak = Personel.objects.filter(id=source_id).first()
+            kaynak = kaynak_model.objects.filter(id=source_id).first()
             if not kaynak:
                 messages.error(request, "Özlükte kaynak personel kaydı bulunamadı.")
-                return redirect("personel_veri_yonetimi")
-            portal_personeli, _ = ozlukten_portala_aktar(kaynak)
+                return redirect(f"{request.path}?tip={tip}")
+            portal_personeli, _ = ozlukten_portala_aktar(kaynak, tip)
             for alan in ("sicil_no", "ad", "soyad", "tc_no", "unvan", "cep_tel", "gorev_birimi", "alt_birimi", "gorevi", "durum"):
                 setattr(portal_personeli, alan, (request.POST.get(alan) or "").strip())
             portal_personeli.save()
+            _portal_kullanici_olustur(portal_personeli)
             messages.success(request, f"{portal_personeli.ad_soyad} için yerel izin portalı bilgileri kaydedildi.")
-            return redirect("personel_veri_yonetimi")
+            return redirect(f"{request.path}?tip={tip}")
 
     q = (request.GET.get("q") or "").strip()
-    kaynak_qs = Personel.objects.select_related("unvan").all()
+    kaynak_qs = kaynak_model.objects.select_related("unvan").all()
     if q:
         lookup = Q(sicil_no__icontains=q) | Q(tc_no__icontains=q) | Q(ad__icontains=q) | Q(soyad__icontains=q) | Q(gorev_birimi__icontains=q) | Q(alt_birimi__icontains=q) | Q(gorevi__icontains=q) | Q(unvan__ad__icontains=q)
         parcalar = q.split()
@@ -846,10 +1667,14 @@ def personel_veri_yonetimi(request):
             lookup |= Q(ad__icontains=parcalar[0], soyad__icontains=parcalar[-1])
         kaynak_qs = kaynak_qs.filter(lookup)
     kaynaklar = list(kaynak_qs.order_by("sicil_no"))
-    yerel_map = {kayit.source_personel_id: kayit for kayit in PortalPersonel.objects.filter(source_personel_id__in=[k.id for k in kaynaklar])}
+    yerel_map = {
+        kayit.source_personel_id: kayit
+        for kayit in PortalPersonel.objects.filter(personel_tipi=tip, source_personel_id__in=[k.id for k in kaynaklar])
+    }
     satirlar = [
         {
             "kaynak": kaynak,
+            "tip": tip,
             "portal": yerel_map.get(kaynak.id),
             "sicil_no": (yerel_map.get(kaynak.id).sicil_no if yerel_map.get(kaynak.id) else kaynak.sicil_no),
             "ad_soyad": (yerel_map.get(kaynak.id).ad_soyad if yerel_map.get(kaynak.id) else kaynak.ad_soyad),
@@ -865,10 +1690,12 @@ def personel_veri_yonetimi(request):
     duzenlenecek = None
     edit_source_id = request.GET.get("duzenle")
     if edit_source_id and edit_source_id.isdigit():
-        kaynak = Personel.objects.select_related("unvan").filter(id=int(edit_source_id)).first()
-        yerel = yerel_map.get(int(edit_source_id)) or PortalPersonel.objects.filter(source_personel_id=edit_source_id).first()
+        kaynak = kaynak_model.objects.select_related("unvan").filter(id=int(edit_source_id)).first()
+        yerel = yerel_map.get(int(edit_source_id)) or PortalPersonel.objects.filter(personel_tipi=tip, source_personel_id=edit_source_id).first()
         if kaynak:
             duzenlenecek = {
+                "tip": tip,
+                "tip_etiket": PERSONEL_TIPI_ETIKET.get(tip, "Memur"),
                 "source_personel_id": kaynak.id,
                 "sicil_no": yerel.sicil_no if yerel else kaynak.sicil_no,
                 "ad": yerel.ad if yerel else kaynak.ad,
@@ -884,8 +1711,17 @@ def personel_veri_yonetimi(request):
             }
     return render(request, "portal/personel_veri_yonetimi.html", {
         "satirlar": satirlar,
-        "toplam_kaynak": Personel.objects.count(),
-        "toplam_portal": PortalPersonel.objects.count(),
+        "tip": tip,
+        "tip_slug": PERSONEL_TIPI_SLUG.get(tip, "memur"),
+        "tip_etiket": PERSONEL_TIPI_ETIKET.get(tip, "Memur"),
+        "tipler": [
+            {"kod": kod, "etiket": PERSONEL_TIPI_ETIKET[kod], "kaynak": model.objects.count(), "portal": PortalPersonel.objects.filter(personel_tipi=kod).count()}
+            for kod, model in PERSONEL_TIPI_MODELLERI.items()
+        ],
+        "toplam_kaynak": kaynak_model.objects.count(),
+        "toplam_portal": PortalPersonel.objects.filter(personel_tipi=tip).count(),
+        "genel_toplam_kaynak": sum(model.objects.count() for model in PERSONEL_TIPI_MODELLERI.values()),
+        "genel_toplam_portal": PortalPersonel.objects.count(),
         "q": q,
         "duzenlenecek": duzenlenecek,
     })
@@ -898,25 +1734,28 @@ def izin_talepleri_yonetim(request):
         islem = request.POST.get("islem")
         not_text = (request.POST.get("not") or "").strip()
         if islem == "geri_cek":
-            if not _izin_yetkisi_var(request.user, "evrak_geri_cekme"):
-                messages.error(request, "Bu evrağı geri çekme yetkiniz yok.")
+            if not _tip_yetkisi_var(request.user, talep.personel_tipi, "evrak_geri_cekme"):
+                messages.error(request, "Bu personel tipi için evrağı geri çekme yetkiniz yok.")
                 return redirect("izin_talepleri_yonetim")
             if talep.durum in ["IMZA_SURECINDE", "PARAF_BEKLIYOR"]:
                 talep.durum = "PARAF_BEKLIYOR"
                 talep.kimin_uzerinde = talep.kontrol_eden
                 talep.imza_sirasi = 0
-                ek = f"\n[{timezone.localtime().strftime('%d.%m.%Y %H:%M')}] Evrak y\u00f6netim taraf\u0131ndan kontrol a\u015famas\u0131na geri \u00e7ekildi."
+                ek = f"\n[{timezone.localtime().strftime('%d.%m.%Y %H:%M')}] Evrak yönetim tarafından kontrol aşamasına geri çekildi."
                 if not_text:
                     ek += f" Not: {not_text}"
                 talep.aciklama = (talep.aciklama or "") + ek
                 talep.save(update_fields=["durum", "kimin_uzerinde", "imza_sirasi", "aciklama", "guncelleme_zamani"])
                 _islem_gecmisi_ekle(talep, request.user, "GERI_CEK", "Evrak Yönetimi", not_text)
-                messages.success(request, "Evrak kontrol a\u015famas\u0131na geri \u00e7ekildi.")
+                messages.success(request, "Evrak kontrol aşamasına geri çekildi.")
             else:
-                messages.error(request, "Bu durumdaki evrak geri \u00e7ekilemez.")
+                messages.error(request, "Bu durumdaki evrak geri çekilemez.")
         elif islem == "sahibine_iade":
-            if not _izin_yetkisi_var(request.user, "sahibine_iade"):
-                messages.error(request, "Bu evrağı sahibine iade etme yetkiniz yok.")
+            if talep.durum == "ONAYLANDI":
+                messages.error(request, "Onaylanmış evrak sahibine iade edilemez.")
+                return redirect("izin_talepleri_yonetim")
+            if not _tip_yetkisi_var(request.user, talep.personel_tipi, "sahibine_iade"):
+                messages.error(request, "Bu personel tipi için evrağı sahibine iade etme yetkiniz yok.")
                 return redirect("izin_talepleri_yonetim")
             talep.durum = "IADE_EDILDI"
             talep.kimin_uzerinde = talep.kullanici
@@ -927,25 +1766,34 @@ def izin_talepleri_yonetim(request):
             talep.save(update_fields=["durum", "kimin_uzerinde", "aciklama", "guncelleme_zamani"])
             _islem_gecmisi_ekle(talep, request.user, "IADE", "Evrak Yönetimi", not_text)
             messages.warning(request, "Evrak sahibine iade edildi.")
+        elif islem == "izin_sil":
+            if not _talep_silinebilir_mi(request.user, talep):
+                messages.error(request, "Bu personel tipi için izin evrakı silme yetkiniz yok.")
+                return redirect("izin_talepleri_yonetim")
+            evrak_no = talep.evrak_no or str(talep.id)
+            talep.delete()
+            messages.success(request, f"{evrak_no} numaralı izin evrakı silindi.")
         return redirect("izin_talepleri_yonetim")
     q = (request.GET.get("q") or "").strip()
     durum = (request.GET.get("durum") or "").strip()
-    qs = IzinTalebi.objects.select_related("izin_turu", "kullanici", "kontrol_eden", "kimin_uzerinde").order_by("-olusturma_zamani")
+    qs = IzinTalebi.objects.select_related("izin_turu", "kullanici", "kontrol_eden", "kimin_uzerinde").filter(_talep_arama_filtresi(request.user)).distinct().order_by("-olusturma_zamani")
     if q:
         qs = qs.filter(Q(evrak_no__icontains=q) | Q(kullanici__username__icontains=q) | Q(kullanici__first_name__icontains=q) | Q(kullanici__last_name__icontains=q))
     if durum:
         qs = qs.filter(durum=durum)
     rows = []
     for talep in qs[:200]:
-        rows.append({"talep": talep, "personel": talep_personeli(talep)})
+        rows.append({
+            "talep": talep,
+            "personel": talep_personeli(talep),
+            "can_geri_cek": talep.durum != "ONAYLANDI" and _tip_yetkisi_var(request.user, talep.personel_tipi, "evrak_geri_cekme"),
+            "can_iade": talep.durum != "ONAYLANDI" and _tip_yetkisi_var(request.user, talep.personel_tipi, "sahibine_iade"),
+            "can_delete": _talep_silinebilir_mi(request.user, talep),
+        })
     return render(request, "portal/izin_talepleri_yonetim.html", {
         "rows": rows, "q": q, "durum": durum, "durumlar": IzinTalebi.DURUM_CHOICES,
-        "geri_cekebilir": _izin_yetkisi_var(request.user, "evrak_geri_cekme"),
-        "iade_edebilir": _izin_yetkisi_var(request.user, "sahibine_iade"),
     })
 
-
-@user_passes_test(_tam_yonetim_yetkisi, login_url="dashboard")
 def kullanici_yetkileri(request):
     if request.method == "POST":
         islem = request.POST.get("islem")
@@ -956,14 +1804,40 @@ def kullanici_yetkileri(request):
                 if not kullanici:
                     messages.error(request, "Seçilen kullanıcı bulunamadı veya pasif durumda.")
                 else:
+                    kontrol_alanlari = ("memur_kontrol_eden", "isci_kontrol_eden", "sirket_kontrol_eden")
+                    eski_kontrol_edenler = {
+                        alan: list(
+                            YonetimYetkisi.objects
+                            .filter(aktif_mi=True, **{alan: True})
+                            .exclude(kullanici=kullanici)
+                            .select_related("kullanici")
+                        )
+                        for alan in kontrol_alanlari
+                    }
                     yetki, _ = YonetimYetkisi.objects.get_or_create(kullanici=kullanici)
                     for alan in YONETIM_YETKI_ALANLARI:
                         setattr(yetki, alan, request.POST.get(alan) == "on")
                     yetki.aktif_mi = any(getattr(yetki, alan) for alan in YONETIM_YETKI_ALANLARI)
                     yetki.aciklama = request.POST.get("aciklama", "")
-                    yetki.save()
+                    with transaction.atomic():
+                        yetki.save()
+                        for alan in kontrol_alanlari:
+                            if getattr(yetki, alan, False):
+                                YonetimYetkisi.objects.exclude(pk=yetki.pk).filter(**{alan: True}).update(**{alan: False})
                     if yetki.aktif_mi:
-                        messages.success(request, "Kullanıcı yetkileri kaydedildi.")
+                        mesaj = "Kullanıcı yetkileri kaydedildi."
+                        degisenler = []
+                        tip_etiketleri = {
+                            "memur_kontrol_eden": "Memur",
+                            "isci_kontrol_eden": "İşçi",
+                            "sirket_kontrol_eden": "Şirket",
+                        }
+                        for alan, oncekiler in eski_kontrol_edenler.items():
+                            if getattr(yetki, alan, False) and oncekiler:
+                                degisenler.append(f"{tip_etiketleri[alan]} kontrol eden yetkisi önceki kullanıcıdan kaldırıldı")
+                        if degisenler:
+                            mesaj += " " + "; ".join(degisenler) + "."
+                        messages.success(request, mesaj)
                     else:
                         messages.warning(request, "Hiçbir yetki seçilmediği için kullanıcı pasif durumda bırakıldı.")
             else:
@@ -975,6 +1849,11 @@ def kullanici_yetkileri(request):
             yetki.aktif_mi = False
             yetki.save(update_fields=[*YONETIM_YETKI_ALANLARI, "aktif_mi", "guncelleme_zamani"])
             messages.warning(request, "Kullanıcının tüm portal yetkileri kaldırıldı.")
+        elif islem == "yetki_sil":
+            yetki = get_object_or_404(YonetimYetkisi, id=request.POST.get("yetki_id"))
+            kullanici_adi = yetki.kullanici.get_full_name().strip() or yetki.kullanici.username
+            yetki.delete()
+            messages.success(request, f"{kullanici_adi} için yetki kaydı silindi.")
         return redirect("kullanici_yetkileri")
     yetkiler = YonetimYetkisi.objects.select_related("kullanici")[:100]
     return render(request, "portal/kullanici_yetkileri.html", {"yetkiler": yetkiler, "yetki_alanlari": YONETIM_YETKI_ALANLARI})
@@ -1005,17 +1884,22 @@ def gorev_birimi_yonetimi(request):
             messages.success(request, "Görev birimleri portal personel kartlarından senkronize edildi.")
             return redirect("gorev_birimi_yonetimi")
         if islem == "imzaci_kaydet":
-            for kayit in GorevBirimiImzaci.objects.all():
+            for kayit in GorevBirimiImzaci.objects.filter(aktif_mi=True):
                 if kayit.alt_birim_adi:
-                    daire_id = None
-                    sube_id = request.POST.get(f"sube_{kayit.id}") or None
+                    alan_adi = f"sube_{kayit.id}"
                 else:
-                    daire_id = request.POST.get(f"daire_{kayit.id}") or None
-                    sube_id = None
-                kayit.daire_baskani_id = daire_id
-                kayit.sube_muduru_id = sube_id
-                kayit.aktif_mi = True
-                kayit.save(update_fields=["daire_baskani", "sube_muduru", "aktif_mi", "guncelleme_zamani"])
+                    alan_adi = f"daire_{kayit.id}"
+                if alan_adi not in request.POST:
+                    continue
+                kullanici_id = request.POST.get(alan_adi) or None
+                kayit.amir_kullanici_id = kullanici_id
+                if kayit.alt_birim_adi:
+                    kayit.daire_baskani_id = None
+                    kayit.sube_muduru_id = kullanici_id
+                else:
+                    kayit.daire_baskani_id = kullanici_id
+                    kayit.sube_muduru_id = None
+                kayit.save(update_fields=["amir_kullanici", "daire_baskani", "sube_muduru", "guncelleme_zamani"])
             messages.success(request, "G\u00f6rev birimi imzac\u0131lar\u0131 kaydedildi.")
             return redirect("gorev_birimi_yonetimi")
         if islem == "vekalet_ekle":
@@ -1056,9 +1940,15 @@ def gorev_birimi_yonetimi(request):
             return redirect("gorev_birimi_yonetimi")
 
     kullanicilar = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
-    kayitlar = list(GorevBirimiImzaci.objects.select_related("daire_baskani", "sube_muduru").order_by("birim_adi", "alt_birim_adi"))
+    kayitlar = list(
+        GorevBirimiImzaci.objects
+        .filter(aktif_mi=True)
+        .select_related("amir_kullanici", "daire_baskani", "sube_muduru")
+        .order_by("birim_adi", "alt_birim_adi")
+    )
     for kayit in kayitlar:
         kayit.ana_imzaci_etiketi = "Genel Müdür" if "genel mudur" in _normalize(kayit.birim_adi) else "Daire Başkanı"
+    org_roots = _gorev_birimi_agaci(kayitlar)
     vekalet_q = (request.GET.get("vekalet_q") or "").strip()
     vekalet_qs = ImzaciVekaleti.objects.select_related("asil_kullanici", "vekil_kullanici")
     if vekalet_q:
@@ -1093,6 +1983,7 @@ def gorev_birimi_yonetimi(request):
     return render(request, "portal/gorev_birimi_yonetimi.html", {
         "kullanicilar": kullanicilar,
         "kayitlar": kayitlar,
+        "org_roots": org_roots,
         "vekaletler": vekaletler,
         "vekalet_q": vekalet_q,
         "ayar": PortalAyar.aktif(),
@@ -1101,46 +1992,41 @@ def gorev_birimi_yonetimi(request):
 
 @user_passes_test(_tam_yonetim_yetkisi, login_url="dashboard")
 def kontrol_eden_yonetimi(request):
-    ayar = PortalAyar.aktif()
-    alanlar = ["kontrol_eden_memur", "kontrol_eden_isci", "kontrol_eden_sirket"]
-    if request.method == "POST":
-        tipler = {
-            "kontrol_eden_memur": "MEMUR",
-            "kontrol_eden_isci": "ISCI",
-            "kontrol_eden_sirket": "SIRKET",
-        }
-        for alan in alanlar:
-            user_id = request.POST.get(alan) or None
-            user = User.objects.filter(id=user_id, is_active=True).first() if user_id else None
-            if user and not _kontrol_yetkisi_var(user, tipler[alan]):
-                messages.error(
-                    request,
-                    f"{_user_label(user)} için önce {tipler[alan].title()} kontrol eden yetkisini Kullanıcı Yetkileri ekranından verin.",
-                )
-                continue
-            setattr(ayar, f"{alan}_id", user.id if user else None)
-        # Eski alan yalnızca eski kayıtlarla uyumluluk içindir.
-        ayar.kontrol_eden_id = ayar.kontrol_eden_memur_id
-        ayar.save(update_fields=["kontrol_eden", *alanlar, "guncelleme_zamani"])
-        messages.success(request, "Memur, işçi ve şirket izinleri için kontrol eden personeller kaydedildi.")
-        return redirect("kontrol_eden_yonetimi")
-    return render(request, "portal/kontrol_eden_yonetimi.html", {"ayar": ayar})
+    messages.info(request, "Kontrol eden seçimi artık Kullanıcı Yetkileri ekranından yapılır.")
+    return redirect("kullanici_yetkileri")
 
 
 @login_required
 def kullanici_ara(request):
     q = (request.GET.get("q") or "").strip()
-    qs = User.objects.filter(is_active=True)
+    qs = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
     if q:
-        lookup = Q(username__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q)
-        parcalar = q.split()
-        if len(parcalar) >= 2:
-            lookup |= Q(first_name__icontains=parcalar[0], last_name__icontains=parcalar[-1])
-        qs = qs.filter(lookup)
+        q_norm = _normalize(q)
+        q_compact = q_norm.replace(" ", "")
+        tokens = [parca for parca in q_norm.split() if parca]
+        secilenler = []
+        for user in qs[:2000]:
+            full = user.get_full_name().strip()
+            blob = _normalize(" ".join([
+                user.username or "",
+                user.first_name or "",
+                user.last_name or "",
+                full,
+                full.replace(" ", ""),
+            ]))
+            blob_compact = blob.replace(" ", "")
+            if q_norm in blob or q_compact in blob_compact or all(token in blob for token in tokens):
+                secilenler.append(user.id)
+        qs = User.objects.filter(id__in=secilenler).order_by("first_name", "last_name", "username")
     data = []
     for user in qs.order_by("first_name", "last_name", "username")[:30]:
         full = user.get_full_name().strip()
-        data.append({"id": user.id, "username": user.username, "label": f"{full} ({user.username})" if full else user.username})
+        data.append({
+            "id": user.id,
+            "username": user.username,
+            "full_name": full,
+            "label": f"{full} ({user.username})" if full else user.username,
+        })
     return JsonResponse({"results": data})
 
 
@@ -1166,32 +2052,24 @@ def birim_ara(request):
 def _personel_secim_kapsami(user):
     """Arama büyütecinde gösterilebilecek personelleri yetkiye göre sınırlar."""
     model = _personel_veri_modeli()
-    if _izin_yetkisi_var(user, "tum_izinleri_goruntuleme") or _kontrol_ettigi_tipler(user):
+    if (
+        _izin_yetkisi_var(user, "tum_izinleri_goruntuleme")
+        or _tip_yetkisi_var(user, "MEMUR", "izin_arama")
+        or _tip_yetkisi_var(user, "MEMUR", "izin_goruntuleme")
+        or "MEMUR" in _kontrol_ettigi_tipler(user)
+    ):
         return model.objects.all()
-
     kapsam = Q(pk__in=[])
     kendi_personeli = kullanicinin_personeli(user)
     if kendi_personeli:
-        if model is PortalPersonel:
-            kapsam |= Q(source_personel_id=_personel_kaynak_id(kendi_personeli))
-        else:
-            kapsam |= Q(pk=kendi_personeli.id)
+        kapsam |= Q(source_personel_id=_personel_kaynak_id(kendi_personeli)) if model is PortalPersonel else Q(pk=kendi_personeli.id)
     yonetilenler = _yonettigi_personeller(user)
     if yonetilenler.exists():
         kapsam |= Q(pk__in=yonetilenler.values("id"))
-    # Kullanıcının oluşturduğu, kontrol ettiği veya geçmişte parafladığı
-    # evraklardaki personeller de doğrudan seçilebilir.
-    gecmis_personeller = IzinTalebi.objects.filter(
-        Q(kullanici=user)
-        | Q(kontrol_eden=user)
-        | Q(kimin_uzerinde=user)
-        | Q(islem_gecmisi__kullanici=user)
-    ).values("personel_id")
+    gecmis_personeller = IzinTalebi.objects.filter(Q(kullanici=user) | Q(kontrol_eden=user) | Q(kimin_uzerinde=user) | Q(islem_gecmisi__kullanici=user)).values("personel_id")
     gecmis_kapsami = Q(source_personel_id__in=gecmis_personeller) if model is PortalPersonel else Q(pk__in=gecmis_personeller)
     return model.objects.filter(kapsam | gecmis_kapsami).distinct()
 
-
-@login_required
 def personel_ara(request):
     q = (request.GET.get("q") or "").strip()
     qs = _personel_secim_kapsami(request.user)
@@ -1226,7 +2104,7 @@ def evrak_paraf(request, talep_id):
     talep = get_object_or_404(IzinTalebi.objects.select_related("izin_turu", "kullanici", "kontrol_eden", "kimin_uzerinde"), id=talep_id)
     personel = talep_personeli(talep)
     if not _talep_gorme_yetkisi(request.user, talep):
-        messages.error(request, "Bu evrak\u0131 g\u00f6r\u00fcnt\u00fcleme yetkiniz yok.")
+        messages.error(request, "Bu evrakı görüntüleme yetkiniz yok.")
         return redirect("dashboard")
     if not personel:
         messages.error(request, "Evrağa bağlı personel kaydı bulunamadı.")
@@ -1236,43 +2114,50 @@ def evrak_paraf(request, talep_id):
             return redirect("izin_talebi_duzenle", talep_id=talep.id)
         messages.warning(request, "Taslak evrak önce sahibi tarafından tamamlanmalıdır.")
         return redirect("dashboard")
-    imzacilar = talep_imzacilari(talep)
+    imzacilar = talep_aktif_imzacilari(talep)
     if request.method == "POST":
         islem = request.POST.get("islem")
         if islem in {"parafla", "imzala"}:
             if not _talep_aktif_gorev_yetkisi(request.user, talep):
-                messages.error(request, "Bu evrak \u015fu anda sizin \u00fczerinizde de\u011fil.")
+                messages.error(request, "Bu evrak şu anda sizin üzerinizde değil.")
                 return redirect("dashboard")
             onceki_durum = talep.durum
             aktif_rol = "Kontrol Eden"
             if onceki_durum == "IMZA_SURECINDE" and talep.imza_sirasi < len(imzacilar):
                 aktif_rol = imzacilar[talep.imza_sirasi][0]
             if talep.durum == "PARAF_BEKLIYOR":
-                talep.kontrol_tarihi = timezone.now()
-                talep.imza_sirasi = 0
-                if imzacilar:
-                    talep.durum = "IMZA_SURECINDE"
-                    talep.kimin_uzerinde = imzacilar[0][1]
-                    messages.success(request, f"Evrak parafland\u0131 ve {imzacilar[0][1].get_full_name() or imzacilar[0][1].username} kullan\u0131c\u0131s\u0131na g\u00f6nderildi.")
+                teklif_parafi_verildi = _teklif_parafi_verildi_mi(talep)
+                if not teklif_parafi_verildi:
+                    talep.kimin_uzerinde = talep.kontrol_eden
+                    talep.imza_sirasi = 1
+                    hedef = talep.kontrol_eden.get_full_name() or talep.kontrol_eden.username
+                    messages.success(request, f"Evrak teklif eden tarafından paraflandı ve kontrol için {hedef} kullanıcısına gönderildi.")
                 else:
-                    talep.durum = "ONAYLANDI"
-                    talep.kimin_uzerinde = None
-                    talep.imza_tamamlanma_tarihi = timezone.now()
-                    try:
-                        izni_ozluge_aktar(talep, personel, request.user)
-                    except ValueError as hata:
-                        messages.error(request, str(hata))
-                        return redirect("dashboard")
-                    except IntegrityError:
-                        messages.error(request, "Özlükte kullanılan izin kaydı oluşturulamadı. Lütfen İK birimi ile görüşünüz.")
-                        return redirect("dashboard")
-                    messages.success(request, "Evrak parafland\u0131 ve imzac\u0131 tan\u0131m\u0131 olmad\u0131\u011f\u0131 i\u00e7in tamamland\u0131.")
+                    talep.kontrol_tarihi = timezone.now()
+                    talep.imza_sirasi = 0
+                    if imzacilar:
+                        talep.durum = "IMZA_SURECINDE"
+                        talep.kimin_uzerinde = imzacilar[0][1]
+                        messages.success(request, f"Evrak kontrol parafından geçti ve {imzacilar[0][1].get_full_name() or imzacilar[0][1].username} kullanıcısına gönderildi.")
+                    else:
+                        talep.durum = "ONAYLANDI"
+                        talep.kimin_uzerinde = None
+                        talep.imza_tamamlanma_tarihi = timezone.now()
+                        try:
+                            izni_ozluge_aktar(talep, personel, request.user)
+                        except ValueError as hata:
+                            messages.error(request, str(hata))
+                            return redirect("dashboard")
+                        except IntegrityError:
+                            messages.error(request, "Özlükte kullanılan izin kaydı oluşturulamadı. Lütfen İK birimi ile görüşünüz.")
+                            return redirect("dashboard")
+                        messages.success(request, "Evrak kontrol parafından geçti ve imzacı tanımı olmadığı için tamamlandı.")
             elif talep.durum == "IMZA_SURECINDE":
                 sonraki_sira = talep.imza_sirasi + 1
                 if sonraki_sira < len(imzacilar):
                     talep.imza_sirasi = sonraki_sira
                     talep.kimin_uzerinde = imzacilar[sonraki_sira][1]
-                    messages.success(request, f"Evrak parafland\u0131 ve {imzacilar[sonraki_sira][1].get_full_name() or imzacilar[sonraki_sira][1].username} kullan\u0131c\u0131s\u0131na g\u00f6nderildi.")
+                    messages.success(request, f"Evrak paraflandı ve {imzacilar[sonraki_sira][1].get_full_name() or imzacilar[sonraki_sira][1].username} kullanıcısına gönderildi.")
                 else:
                     talep.durum = "ONAYLANDI"
                     talep.kimin_uzerinde = None
@@ -1285,20 +2170,23 @@ def evrak_paraf(request, talep_id):
                     except IntegrityError:
                         messages.error(request, "Özlükte kullanılan izin kaydı oluşturulamadı. Lütfen İK birimi ile görüşünüz.")
                         return redirect("dashboard")
-                    messages.success(request, "Evrak imzaland\u0131 ve izin s\u00fcreci tamamland\u0131. Olu\u015fturan personelin g\u00f6revlerine bilgi d\u00fc\u015ft\u00fc.")
+                    messages.success(request, "Evrak imzalandı ve izin süreci tamamlandı. Oluşturan personelin görevlerine bilgi düştü.")
             else:
-                messages.error(request, "Bu evrak i\u00e7in aktif paraf/imza i\u015flemi bulunmuyor.")
+                messages.error(request, "Bu evrak için aktif paraf/imza işlemi bulunmuyor.")
                 return redirect("dashboard")
             talep.save(update_fields=["durum", "kontrol_tarihi", "kimin_uzerinde", "imza_sirasi", "imza_tamamlanma_tarihi", "ozluk_aktarildi_mi", "ozluk_aktarim_tarihi", "guncelleme_zamani"])
             if onceki_durum == "PARAF_BEKLIYOR":
-                _islem_gecmisi_ekle(talep, request.user, "KONTROL_PARAFI", aktif_rol)
+                if request.user.id == talep.kontrol_eden_id and talep.kimin_uzerinde_id != request.user.id:
+                    _islem_gecmisi_ekle(talep, request.user, "KONTROL_PARAFI", "Kontrol Eden")
+                else:
+                    _islem_gecmisi_ekle(talep, request.user, "IMZA", "Teklif Eden")
             else:
                 gecmis_islem = "ONAY" if talep.durum == "ONAYLANDI" else "IMZA"
                 _islem_gecmisi_ekle(talep, request.user, gecmis_islem, aktif_rol)
             return redirect("dashboard")
         if islem == "reddet":
             if not _talep_aktif_gorev_yetkisi(request.user, talep):
-                messages.error(request, "Bu evrak \u015fu anda sizin \u00fczerinizde de\u011fil.")
+                messages.error(request, "Bu evrak şu anda sizin üzerinizde değil.")
                 return redirect("dashboard")
             talep.durum = "REDDEDILDI"
             talep.kimin_uzerinde = None
@@ -1323,8 +2211,6 @@ def evrak_paraf(request, talep_id):
         "goreve_baslama_tarihi": goreve_baslama_tarihi(talep),
     })
 
-
-@login_required
 def evrak_onizleme(request, talep_id):
     talep = get_object_or_404(IzinTalebi.objects.select_related("izin_turu", "kullanici", "kontrol_eden", "kimin_uzerinde"), id=talep_id)
     personel = talep_personeli(talep)
@@ -1336,7 +2222,7 @@ def evrak_onizleme(request, talep_id):
             return redirect("izin_talebi_duzenle", talep_id=talep.id)
         messages.warning(request, "Taslak evrak önizlenemez.")
         return redirect("dashboard")
-    return render(request, "portal/evrak_paraf.html", {"talep": talep, "personel": personel, "imzacilar": talep_imzacilari(talep), "indir": True, "goreve_baslama_tarihi": goreve_baslama_tarihi(talep)})
+    return render(request, "portal/evrak_paraf.html", {"talep": talep, "personel": personel, "imzacilar": talep_aktif_imzacilari(talep), "indir": True, "goreve_baslama_tarihi": goreve_baslama_tarihi(talep)})
 
 
 @login_required
@@ -1355,13 +2241,16 @@ def evrak_indir(request, talep_id):
     if dosya_tipi not in {"pdf", "excel"}:
         return redirect("evrak_onizleme", talep_id=talep.id)
 
-    imzacilar = talep_imzacilari(talep)
+    imzacilar = talep_aktif_imzacilari(talep)
     baslama = goreve_baslama_tarihi(talep)
     guvenli_no = re.sub(r"[^A-Za-z0-9_-]", "-", talep.evrak_no or str(talep.id))
     if dosya_tipi == "pdf":
         content = izin_pdf_olustur(talep, personel, imzacilar, baslama)
         response = HttpResponse(content, content_type="application/pdf")
-        response["Content-Disposition"] = f'attachment; filename="izin-evraki-{guvenli_no}.pdf"'
+        # Yazdır düğmesi aynı PDF belgesini tarayıcıda açar; HTML yazdırma
+        # düzeniyle indirilen belge arasında görünüm farkı oluşmaz.
+        disposition = "inline" if request.GET.get("inline") in {"1", "true", "True"} else "attachment"
+        response["Content-Disposition"] = f'{disposition}; filename="izin-evraki-{guvenli_no}.pdf"'
         return response
 
     content = izin_excel_olustur(talep, personel, imzacilar, baslama)
@@ -1377,10 +2266,10 @@ def evrak_indir(request, talep_id):
 def izin_ara(request):
     if request.method == "POST":
         if request.POST.get("islem") == "izin_sil":
-            if not _izin_yetkisi_var(request.user, "izin_silme"):
-                messages.error(request, "İzin evrakı silme yetkiniz yok.")
-                return redirect("izin_ara")
             talep = get_object_or_404(IzinTalebi, id=request.POST.get("talep_id"))
+            if not _talep_silinebilir_mi(request.user, talep):
+                messages.error(request, "Bu personel tipi için izin evrakı silme yetkiniz yok.")
+                return redirect("izin_ara")
             evrak_no = talep.evrak_no or str(talep.id)
             talep.delete()
             messages.success(request, f"{evrak_no} numaralı izin evrakı silindi.")
@@ -1596,5 +2485,6 @@ def izin_ara(request):
         "per_page_options": per_page_options, "pagination_query": pagination_query,
         "page_size_query": page_size_query, "sort_links": sort_links,
         "sort": sort, "direction": direction,
-        "can_delete": _izin_yetkisi_var(request.user, "izin_silme"),
+        "can_delete": any(row.get("can_delete") for row in rows),
+        "genis_arama_yetkisi": _genis_izin_arama_yetkisi(request.user),
     })

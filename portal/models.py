@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -83,13 +83,87 @@ class Personel(models.Model):
             return _turkce_baslik(self.gorevi)
 
 
-class PortalPersonel(models.Model):
-    """Özlükten seçilerek aktarılan, izin portalına ait düzenlenebilir personel kartı."""
-    source_personel_id = models.PositiveIntegerField(unique=True, db_index=True)
-    sicil_no = models.CharField(max_length=20, unique=True)
+class DigerKaynakPersonel(models.Model):
+    """Ana özlük uygulamasındaki işçi/şirket personel kayıtları için ortak okuma modeli."""
+    sicil_no = models.CharField(max_length=20)
     ad = models.CharField(max_length=50)
     soyad = models.CharField(max_length=50)
-    tc_no = models.CharField(max_length=11, unique=True)
+    tc_no = models.CharField(max_length=11)
+    cep_tel = models.CharField(max_length=20, blank=True, default="")
+    gorev_birimi = models.CharField(max_length=150)
+    alt_birimi = models.CharField(max_length=150, blank=True, default="")
+    kadro_unvani = models.CharField(max_length=150, blank=True, default="")
+    unvan = models.ForeignKey(
+        Unvan,
+        db_column="unvan_id",
+        on_delete=models.DO_NOTHING,
+        related_name="+",
+        null=True,
+        blank=True,
+        db_constraint=False,
+    )
+    gorevi = models.CharField(max_length=150, blank=True, default="")
+    fiili_gorevi = models.CharField(max_length=150, blank=True, default="")
+    meslek_adi = models.CharField(max_length=150, blank=True, default="")
+    birimdeki_gorevi = models.CharField(max_length=150, blank=True, default="")
+    durum = models.CharField(max_length=20, blank=True, default="")
+    ise_baslama_tarihi = models.DateField(blank=True, null=True)
+
+    class Meta:
+        abstract = True
+        managed = False
+        ordering = ["sicil_no"]
+
+    def __str__(self):
+        return f"{self.sicil_no} - {self.ad_soyad}"
+
+    @property
+    def ad_soyad(self):
+        return _turkce_baslik(f"{self.ad} {self.soyad}")
+
+    @property
+    def unvani(self):
+        try:
+            kaynak = (self.unvan.ad if self.unvan else "") or self.kadro_unvani or self.gorevi or self.fiili_gorevi
+        except Unvan.DoesNotExist:
+            kaynak = self.kadro_unvani or self.gorevi or self.fiili_gorevi
+        return _turkce_baslik(kaynak)
+
+
+class IsciPersonel(DigerKaynakPersonel):
+    statusu = models.CharField(max_length=80, blank=True, default="")
+    sigortali_durumu = models.CharField(max_length=120, blank=True, default="")
+
+    class Meta(DigerKaynakPersonel.Meta):
+        db_table = "ozluk_iscipersonel"
+        verbose_name = "İşçi Personel"
+        verbose_name_plural = "İşçi Personeller"
+
+
+class SirketPersonel(DigerKaynakPersonel):
+    sirket_bilgisi = models.CharField(max_length=180, blank=True, default="")
+    alt_sirket_bilgisi = models.CharField(max_length=180, blank=True, default="")
+    eski_sirket_bilgisi = models.CharField(max_length=180, blank=True, default="")
+
+    class Meta(DigerKaynakPersonel.Meta):
+        db_table = "ozluk_sirketpersonel"
+        verbose_name = "Şirket Personeli"
+        verbose_name_plural = "Şirket Personelleri"
+
+
+class PortalPersonel(models.Model):
+    """Özlükten seçilerek aktarılan, izin portalına ait düzenlenebilir personel kartı."""
+    PERSONEL_TIPI_CHOICES = [
+        ("MEMUR", "Memur"),
+        ("ISCI", "İşçi"),
+        ("SIRKET", "Şirket"),
+    ]
+    personel_tipi = models.CharField(max_length=12, choices=PERSONEL_TIPI_CHOICES, default="MEMUR", db_index=True)
+    source_personel_id = models.PositiveIntegerField(db_index=True)
+    sicil_no = models.CharField(max_length=20)
+    ad = models.CharField(max_length=50)
+    soyad = models.CharField(max_length=50)
+    tc_no = models.CharField(max_length=11)
     unvan = models.CharField(max_length=150, blank=True, default="")
     cep_tel = models.CharField(max_length=20, blank=True, default="")
     gorev_birimi = models.CharField(max_length=180, blank=True, default="")
@@ -101,7 +175,8 @@ class PortalPersonel(models.Model):
     yerel_guncelleme_zamani = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["sicil_no"]
+        ordering = ["personel_tipi", "sicil_no"]
+        unique_together = ("personel_tipi", "source_personel_id")
         verbose_name = "Portal Personeli"
         verbose_name_plural = "Portal Personelleri"
 
@@ -115,6 +190,42 @@ class PortalPersonel(models.Model):
     @property
     def unvani(self):
         return _turkce_baslik(self.unvan or self.gorevi)
+
+
+class PortalIzinHakki(models.Model):
+    """İşçi/şirket gibi özlükte ayrı izin tablosu henüz olmayan personel için portal içi geçici izin bakiyesi."""
+    personel = models.ForeignKey(PortalPersonel, on_delete=models.CASCADE, related_name="yerel_izin_haklari")
+    izin_yili = models.PositiveSmallIntegerField()
+    hak_edilen_gun = models.DecimalField(max_digits=6, decimal_places=2)
+    gecerlilik_baslangic_tarihi = models.DateField()
+    gecerlilik_bitis_tarihi = models.DateField()
+    ise_baslama_tarihi = models.DateField(blank=True, null=True)
+    olusturma_zamani = models.DateTimeField(auto_now_add=True)
+    guncelleme_zamani = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-izin_yili"]
+        unique_together = ("personel", "izin_yili")
+        verbose_name = "Portal İzin Hakkı"
+        verbose_name_plural = "Portal İzin Hakları"
+
+
+class PortalKullanilanIzin(models.Model):
+    personel = models.ForeignKey(PortalPersonel, on_delete=models.CASCADE, related_name="yerel_izin_kullanimlari")
+    izin_turu = models.ForeignKey("IzinTuru", on_delete=models.PROTECT)
+    hak_edilen_izin = models.ForeignKey(PortalIzinHakki, on_delete=models.SET_NULL, null=True, blank=True, related_name="kullanimlar")
+    izin_baslangic_tarihi = models.DateField()
+    izin_bitis_tarihi = models.DateField()
+    kullanilan_gun = models.DecimalField(max_digits=6, decimal_places=2)
+    ise_baslama_tarihi = models.DateField(blank=True, null=True)
+    aciklama = models.TextField(blank=True, default="")
+    olusturan = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    olusturma_zamani = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-izin_baslangic_tarihi", "-id"]
+        verbose_name = "Portal Kullanılan İzin"
+        verbose_name_plural = "Portal Kullanılan İzinler"
 
 
 class IzinTuru(models.Model):
@@ -195,6 +306,7 @@ class IzinTalebi(models.Model):
     izin_turu = models.ForeignKey(IzinTuru, on_delete=models.PROTECT, null=True, blank=True)
     kurum_kayit_tarihi = models.DateField(null=True, blank=True)
     evrak_no = models.CharField(max_length=30, blank=True, default="")
+    cep_telefonu = models.CharField(max_length=20, blank=True, default="")
     izin_sebebi = models.CharField(max_length=200, blank=True, default="")
     ait_oldugu_yil = models.CharField(max_length=30, blank=True, default="")
     baslangic_tarihi = models.DateField(null=True, blank=True)
@@ -218,16 +330,45 @@ class IzinTalebi(models.Model):
 
     class Meta:
         ordering = ["-olusturma_zamani"]
-        verbose_name = "?zin Talebi"
-        verbose_name_plural = "?zin Talepleri"
+        verbose_name = "İzin Talebi"
+        verbose_name_plural = "İzin Talepleri"
 
     def __str__(self):
-        return f"{self.personel_id} / {self.izin_turu} / {self.kullanilan_gun} g?n"
+        return f"{self.personel_id} / {self.izin_turu} / {self.kullanilan_gun} gün"
+
+
+class KaynakGorevBirimi(models.Model):
+    ad = models.CharField(max_length=200)
+    kod = models.CharField(max_length=20, blank=True, null=True)
+    birim_turu = models.CharField(max_length=35, blank=True, default="DIGER")
+    amir_personel = models.ForeignKey(Personel, db_column="amir_personel_id", on_delete=models.DO_NOTHING, null=True, blank=True, db_constraint=False, related_name="+")
+    aktif_mi = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "bordro_gorevbirimi"
+        ordering = ["ad"]
+
+
+class KaynakAltBirim(models.Model):
+    gorev_birimi = models.ForeignKey(KaynakGorevBirimi, db_column="gorev_birimi_id", on_delete=models.DO_NOTHING, db_constraint=False, related_name="alt_birimler")
+    ad = models.CharField(max_length=200)
+    kod = models.CharField(max_length=20, blank=True, null=True)
+    amir_personel = models.ForeignKey(Personel, db_column="amir_personel_id", on_delete=models.DO_NOTHING, null=True, blank=True, db_constraint=False, related_name="+")
+    aktif_mi = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "bordro_altbirim"
+        ordering = ["gorev_birimi__ad", "ad"]
 
 
 class GorevBirimiImzaci(models.Model):
     birim_adi = models.CharField(max_length=150)
     alt_birim_adi = models.CharField(max_length=150, blank=True, default="")
+    birim_turu = models.CharField(max_length=35, blank=True, default="DIGER")
+    ust_birim_adi = models.CharField(max_length=180, blank=True, default="")
+    amir_kullanici = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="amir_oldugu_portal_birimleri")
     daire_baskani = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="daire_baskani_birimleri")
     sube_muduru = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="sube_muduru_birimleri")
     aktif_mi = models.BooleanField(default=True)
@@ -236,8 +377,8 @@ class GorevBirimiImzaci(models.Model):
     class Meta:
         ordering = ["birim_adi", "alt_birim_adi"]
         unique_together = ("birim_adi", "alt_birim_adi")
-        verbose_name = "G?rev Birimi ?mzac?s?"
-        verbose_name_plural = "G?rev Birimi ?mzac?lar?"
+        verbose_name = "Görev Birimi İmzacı"
+        verbose_name_plural = "Görev Birimi İmzacıları"
 
     def __str__(self):
         return f"{self.birim_adi} / {self.alt_birim_adi or '-'}"
@@ -254,8 +395,8 @@ class ImzaciVekaleti(models.Model):
 
     class Meta:
         ordering = ["-baslangic_tarihi", "asil_kullanici__username"]
-        verbose_name = "?mzac? Vekaleti"
-        verbose_name_plural = "?mzac? Vekaletleri"
+        verbose_name = "İmzacı Vekaleti"
+        verbose_name_plural = "İmzacı Vekaletleri"
 
     def __str__(self):
         return f"{self.asil_kullanici} -> {self.vekil_kullanici}"
@@ -271,11 +412,11 @@ class PortalAyar(models.Model):
     guncelleme_zamani = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Portal Ayar?"
-        verbose_name_plural = "Portal Ayarlar?"
+        verbose_name = "Portal Ayarı"
+        verbose_name_plural = "Portal Ayarları"
 
     def __str__(self):
-        return "?zin Portal? Ayarlar?"
+        return "İzin Portalı Ayarları"
 
     @classmethod
     def aktif(cls):
@@ -297,6 +438,25 @@ class YonetimYetkisi(models.Model):
     izin_silme = models.BooleanField(default=False)
     tamamlanan_izin_bildirimi = models.BooleanField(default=False)
     birim_ve_vekalet_yonetimi = models.BooleanField(default=False)
+    # Personel tipi bazlı ayrıntılı evrak yetkileri.
+    memur_izin_goruntuleme = models.BooleanField(default=False)
+    isci_izin_goruntuleme = models.BooleanField(default=False)
+    sirket_izin_goruntuleme = models.BooleanField(default=False)
+    memur_izin_arama = models.BooleanField(default=False)
+    isci_izin_arama = models.BooleanField(default=False)
+    sirket_izin_arama = models.BooleanField(default=False)
+    memur_evrak_geri_cekme = models.BooleanField(default=False)
+    isci_evrak_geri_cekme = models.BooleanField(default=False)
+    sirket_evrak_geri_cekme = models.BooleanField(default=False)
+    memur_sahibine_iade = models.BooleanField(default=False)
+    isci_sahibine_iade = models.BooleanField(default=False)
+    sirket_sahibine_iade = models.BooleanField(default=False)
+    memur_izin_silme = models.BooleanField(default=False)
+    isci_izin_silme = models.BooleanField(default=False)
+    sirket_izin_silme = models.BooleanField(default=False)
+    memur_tamamlanan_izin_bildirimi = models.BooleanField(default=False)
+    isci_tamamlanan_izin_bildirimi = models.BooleanField(default=False)
+    sirket_tamamlanan_izin_bildirimi = models.BooleanField(default=False)
     aktif_mi = models.BooleanField(default=True)
     aciklama = models.CharField(max_length=200, blank=True, default="")
     olusturma_zamani = models.DateTimeField(auto_now_add=True)
@@ -306,6 +466,13 @@ class YonetimYetkisi(models.Model):
         ordering = ["kullanici__first_name", "kullanici__last_name", "kullanici__username"]
         verbose_name = "Y\u00f6netim Yetkisi"
         verbose_name_plural = "Y\u00f6netim Yetkileri"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        kontrol_alanlari = ("memur_kontrol_eden", "isci_kontrol_eden", "sirket_kontrol_eden")
+        for alan in kontrol_alanlari:
+            if getattr(self, alan, False):
+                YonetimYetkisi.objects.exclude(pk=self.pk).filter(**{alan: True}).update(**{alan: False})
 
     def __str__(self):
         return f"{self.kullanici} / {'Aktif' if self.aktif_mi else 'Pasif'}"
@@ -344,3 +511,5 @@ class IzinBildirimKapatma(models.Model):
         unique_together = ("kullanici", "talep")
         verbose_name = "Kapatılan İzin Bildirimi"
         verbose_name_plural = "Kapatılan İzin Bildirimleri"
+
+

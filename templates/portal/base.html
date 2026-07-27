@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="tr">
 {% load portal_extras %}
 <head>
@@ -6,12 +6,14 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}&#304;zin Portal&#305;{% endblock %}</title>
-    <link rel="stylesheet" href="/static/portal/style.css?v=23">
+    <link rel="stylesheet" href="/static/portal/style.css?v=40">
 </head>
 <body class="app-body {% if indir %}document-window{% endif %}">
     <aside class="sidebar">
         <div class="brand">
-            <div class="brand-mark">&#304;</div>
+            <div class="brand-mark tiski-brand-mark" aria-label="TİSKİ">
+                <img src="/static/portal/tiski-logo.png?v=1" alt="TİSKİ">
+            </div>
             <div><strong>&#304;zin Portal&#305;</strong><span>T&#304;SK&#304;</span></div>
         </div>
         <nav class="side-nav">
@@ -22,7 +24,6 @@
                 <a href="{% url 'yonetim' %}" class="{% if request.resolver_match.url_name == 'yonetim' or request.resolver_match.url_name == 'gorev_birimi_yonetimi' or request.resolver_match.url_name == 'izin_talepleri_yonetim' or request.resolver_match.url_name == 'kullanici_yetkileri' or request.resolver_match.url_name == 'kontrol_eden_yonetimi' %}active{% endif %}">Y&#246;netim</a>
             {% endif %}
         </nav>
-        <form method="post" action="{% url 'logout' %}" class="logout-form">{% csrf_token %}<button>&#199;&#305;k&#305;&#351;</button></form>
     </aside>
     <section class="workspace">
         <header class="app-topbar">
@@ -33,13 +34,48 @@
                         &#8646; Aktif vekil: <b>{{ vekalet.asil_kullanici.get_full_name|default:vekalet.asil_kullanici.username|ad_soyad_yazimi }}</b> yerine
                     </span>
                 {% endfor %}
-                <div class="user-chip"><span>{{ request.user.username|slice:":2"|upper }}</span>{{ request.user.get_full_name|default:request.user.username }}</div>
+                <div class="user-chip">
+                    <span>
+                        {% if request.user.first_name or request.user.last_name %}
+                            {{ request.user.first_name|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}
+                        {% else %}
+                            {{ request.user.username|slice:":2"|upper }}
+                        {% endif %}
+                    </span>
+                    {{ request.user.get_full_name|default:request.user.username }}
+                </div>
+                <form method="post" action="{% url 'logout' %}" class="topbar-logout-form">
+                    {% csrf_token %}
+                    <button type="submit">&#199;&#305;k&#305;&#351;</button>
+                </form>
             </div>
         </header>
         <main class="page">
-            {% if messages %}<div class="toast-stack">{% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+            {% if messages %}<div class="toast-stack">{% for message in messages %}<div class="alert {{ message.tags }}"><span>{{ message }}</span><button type="button" class="toast-close" aria-label="Bildirimi kapat">&times;</button></div>{% endfor %}</div>{% endif %}
             {% block content %}{% endblock %}
         </main>
     </section>
+    <footer class="system-footer app-system-footer" aria-label="Sistem bilgisi">
+        <span class="ea-footer-signature" aria-hidden="true">
+            <img src="/static/portal/ea-signature.png?v=3" alt="">
+        </span>
+        <span>TRABZON &#304;&#199;MESUYU VE KANAL&#304;ZASYON &#304;DARES&#304; GENEL M&#220;D&#220;RL&#220;&#286;&#220;</span>
+        <strong>&#304;Z&#304;N S&#304;STEM&#304;</strong>
+    </footer>
+    <script>
+    (function(){
+      document.querySelectorAll('.toast-stack .alert').forEach(function(alert){
+        var close = alert.querySelector('.toast-close');
+        var hide = function(){
+          alert.classList.add('is-hiding');
+          window.setTimeout(function(){ alert.remove(); }, 260);
+        };
+        alert.addEventListener('click', hide);
+        if(close) close.addEventListener('click', function(event){ event.stopPropagation(); hide(); });
+        window.setTimeout(hide, 5600);
+      });
+    })();
+    </script>
 </body>
 </html>
+

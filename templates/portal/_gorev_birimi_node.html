@@ -1,0 +1,33 @@
+<article class="portal-org-node depth-{{ node.depth }}">
+    <div class="portal-org-branch"></div>
+    <div class="portal-org-card {% if node.kayit.birim_turu == 'GENEL_MUDURLUK' %}root{% elif node.kayit.birim_turu == 'GENEL_MUDUR_YARDIMCILIGI' %}assistant{% elif node.kayit.birim_turu == 'DAIRE_BASKANLIGI' %}department{% elif node.is_alt %}subunit{% else %}unit{% endif %}">
+        <button type="button" class="portal-org-toggle {% if not node.children %}empty{% endif %}" data-target="unit-{{ node.key }}">{% if node.children %}&#9656;{% else %}•{% endif %}</button>
+        <div class="portal-org-main">
+            <span class="portal-org-type">{% if node.kayit.birim_turu == 'GENEL_MUDURLUK' %}En Üst Birim{% elif node.kayit.birim_turu == 'GENEL_MUDUR_YARDIMCILIGI' %}Genel Müdür Yardımcılığı{% elif node.kayit.birim_turu == 'DAIRE_BASKANLIGI' %}Daire Başkanlığı{% elif node.is_alt %}Şube Müdürlüğü{% else %}Görev Birimi{% endif %}</span>
+            <strong>{{ node.title }}</strong>
+            {% if node.selected_user %}<em>{{ node.selected_user.get_full_name|default:node.selected_user.username }}</em>{% endif %}
+            {% if node.subtitle %}<small>{{ node.subtitle }}</small>{% endif %}
+        </div>
+        <div class="portal-org-badges"><span>{{ node.title|slice:":2"|upper }}</span><span class="ok">Aktif</span></div>
+        <div class="portal-org-picker-wrap">
+            <div class="person-picker compact-picker" data-field="{{ node.field_name }}">
+                <label>{{ node.type_label }}</label>
+                <input type="hidden" name="{{ node.field_name }}" value="{{ node.selected_user_id|default:'' }}">
+                <input type="hidden" name="{{ node.other_field_name }}" value="">
+                <div class="picker-line">
+                    <input type="text" placeholder="İsim veya kullanıcı adı yaz" value="{% if node.selected_user %}{{ node.selected_user.get_full_name|default:node.selected_user.username }} ({{ node.selected_user.username }}){% endif %}">
+                    <button type="button" class="search-btn">&#128269;</button>
+                    <button type="button" class="clear-btn">Sil</button>
+                </div>
+                <div class="picker-results"></div>
+            </div>
+        </div>
+    </div>
+    {% if node.children %}
+        <div class="portal-org-children" id="unit-{{ node.key }}">
+            {% for child in node.children %}
+                {% include "portal/_gorev_birimi_node.html" with node=child %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</article>

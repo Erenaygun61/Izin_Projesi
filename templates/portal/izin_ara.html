@@ -9,42 +9,44 @@
         <label>Evrak No / Say&#305;<input type="text" name="evrak_no" value="{{ evrak_no }}" placeholder="&#214;rn: 2026-12"></label>
         <label>Evrak Tarihi Ba&#351;lang&#305;&#231;<input type="date" name="tarih_baslangic" value="{{ tarih_baslangic }}"></label>
         <label>Evrak Tarihi Biti&#351;<input type="date" name="tarih_bitis" value="{{ tarih_bitis }}"></label>
+        {% if genis_arama_yetkisi %}
         <div class="filter-picker" data-kind="birim">
             <label>Birim</label>
             <input type="hidden" name="birim" value="{{ birim }}">
             <input type="hidden" name="alt_birim" value="{{ alt_birim }}">
             <div class="picker-line"><input type="text" name="birim_metin" value="{% if birim %}{{ birim }}{% if alt_birim %} / {{ alt_birim }}{% endif %}{% else %}{{ birim_metin }}{% endif %}" placeholder="Birim ad&#305; yaz veya b&#252;y&#252;te&#231;ten se&#231;"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
-            <div class="picker-results"></div>
         </div>
         <div class="filter-picker" data-kind="personel">
             <label>Personel</label>
             <input type="hidden" name="personel" value="{% if secili_personel %}{{ secili_personel.id }}{% endif %}">
             <div class="picker-line"><input type="text" name="personel_metin" value="{% if secili_personel %}{{ secili_personel.sicil_no }} - {{ secili_personel.ad_soyad }}{% else %}{{ personel_metin }}{% endif %}" placeholder="Sicil no veya ad soyad yaz"><button type="button" class="search-btn" title="Personel ara">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
-            <div class="picker-results"></div>
         </div>
         <div class="filter-picker" data-kind="kullanici">
             <label>&#304;mzalayan Kullan&#305;c&#305;</label>
             <input type="hidden" name="imzalayan" value="{% if secili_imzalayan %}{{ secili_imzalayan.id }}{% endif %}">
             <div class="picker-line"><input type="text" name="imzalayan_metin" value="{% if secili_imzalayan %}{{ secili_imzalayan.get_full_name|default:secili_imzalayan.username }} ({{ secili_imzalayan.username }}){% else %}{{ imzalayan_metin }}{% endif %}" placeholder="&#304;sim veya kullan&#305;c&#305; ad&#305; yaz"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
-            <div class="picker-results"></div>
         </div>
         <label>Durum<select name="durum"><option value="">T&#252;m&#252;</option>{% for key,label in durumlar %}<option value="{{ key }}" {% if durum == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        {% else %}
+        <div class="own-search-note">Yetkiniz olmad&#305;&#287;&#305; i&#231;in yaln&#305;zca kendi izin evraklar&#305;n&#305;z listelenir.</div>
+        <label>Durum<select name="durum"><option value="">T&#252;m&#252;</option>{% for key,label in durumlar %}<option value="{{ key }}" {% if durum == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        {% endif %}
         <div class="search-actions"><a href="{% url 'izin_ara' %}" class="clear-search-action">Temizle</a><button class="green-action">Ara</button></div>
     </form>
 </section>
 <section class="evrak-table-wrap">
     <table class="evrak-search-table"><thead><tr>
         <th></th>
-        <th><a class="sort-link {% if sort_links.evrak_tanimi.active %}active{% endif %}" href="?{{ sort_links.evrak_tanimi.url }}">Evrak Tan&#305;m&#305;{% if sort_links.evrak_tanimi.active %}<span>{% if sort_links.evrak_tanimi.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.birim.active %}active{% endif %}" href="?{{ sort_links.birim.url }}">Evrak&#305;n Birimi{% if sort_links.birim.active %}<span>{% if sort_links.birim.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.konu.active %}active{% endif %}" href="?{{ sort_links.konu.url }}">Konu{% if sort_links.konu.active %}<span>{% if sort_links.konu.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.evrak_no.active %}active{% endif %}" href="?{{ sort_links.evrak_no.url }}">Evrak No{% if sort_links.evrak_no.active %}<span>{% if sort_links.evrak_no.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.kurum_kayit.active %}active{% endif %}" href="?{{ sort_links.kurum_kayit.url }}">Kurum Kay&#305;t Tarihi{% if sort_links.kurum_kayit.active %}<span>{% if sort_links.kurum_kayit.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.olusturma.active %}active{% endif %}" href="?{{ sort_links.olusturma.url }}">Olu&#351;turulma{% if sort_links.olusturma.active %}<span>{% if sort_links.olusturma.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.olusturan.active %}active{% endif %}" href="?{{ sort_links.olusturan.url }}">Olu&#351;turan{% if sort_links.olusturan.active %}<span>{% if sort_links.olusturan.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.imzalayanlar.active %}active{% endif %}" href="?{{ sort_links.imzalayanlar.url }}">&#304;mzalayanlar{% if sort_links.imzalayanlar.active %}<span>{% if sort_links.imzalayanlar.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.durum.active %}active{% endif %}" href="?{{ sort_links.durum.url }}">Durum{% if sort_links.durum.active %}<span>{% if sort_links.durum.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
-        <th><a class="sort-link {% if sort_links.kimde.active %}active{% endif %}" href="?{{ sort_links.kimde.url }}">Kimin &#220;zerinde{% if sort_links.kimde.active %}<span>{% if sort_links.kimde.direction == "asc" %}&#9650;{% else %}&#9660;{% endif %}</span>{% endif %}</a></th>
+        <th>Evrak Tan&#305;m&#305;</th>
+        <th>Evrak&#305;n Birimi</th>
+        <th>Konu</th>
+        <th>Evrak No</th>
+        <th>Kurum Kay&#305;t Tarihi</th>
+        <th>Olu&#351;turulma</th>
+        <th>Olu&#351;turan</th>
+        <th>&#304;mzalayanlar</th>
+        <th>Durum</th>
+        <th>Kimin &#220;zerinde</th>
         <th>Detay</th>
     </tr></thead><tbody>
         {% for row in rows %}<tr class="row-{{ row.talep.durum|lower }}">
@@ -54,7 +56,7 @@
                     <div class="row-menu-pop">
                         <a href="{% url 'evrak_paraf' row.talep.id %}">Evrak&#305; a&#231;</a>
                         <a href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#214;nizle</a>
-                        {% if can_delete %}<form method="post" onsubmit="return confirm('{{ row.talep.evrak_no }} numaral&#305; izin evrak&#305; silinsin mi?');">{% csrf_token %}<input type="hidden" name="islem" value="izin_sil"><input type="hidden" name="talep_id" value="{{ row.talep.id }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit">Sil</button></form>{% endif %}
+                        {% if row.can_delete %}<form method="post" class="delete-leave-form" data-evrak-no="{{ row.talep.evrak_no }}" data-approved="{% if row.talep.durum == 'ONAYLANDI' %}1{% else %}0{% endif %}">{% csrf_token %}<input type="hidden" name="islem" value="izin_sil"><input type="hidden" name="talep_id" value="{{ row.talep.id }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="yonetici_sifre" value=""><button type="submit">Sil</button></form>{% endif %}
                     </div>
                 </div>
             </td>
@@ -89,42 +91,98 @@
 </section>
 <script>
 (function(){
+  function escapeHtml(value){
+    return String(value || '').replace(/[&<>"]/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];
+    });
+  }
   function reset(picker){
     picker.querySelectorAll('input[type="hidden"]').forEach(input => input.value='');
     picker.querySelector('.picker-line input[type="text"]').value='';
-    const results=picker.querySelector('.picker-results'); results.innerHTML=''; results.classList.remove('open');
   }
-  async function search(picker){
-    const input=picker.querySelector('.picker-line input[type="text"]');
-    const results=picker.querySelector('.picker-results');
-    const q=input.value.trim();
-    const kind=picker.dataset.kind;
-    if(q.length<2 && kind!=='personel'){ results.innerHTML=''; results.classList.remove('open'); return; }
-    const endpoint=kind==='birim' ? '{% url "birim_ara" %}' : kind==='personel' ? '{% url "personel_ara" %}' : '{% url "kullanici_ara" %}';
-    const response=await fetch(endpoint+'?q='+encodeURIComponent(q));
-    const data=await response.json();
-    results.innerHTML=(data.results||[]).map(item => kind==='birim'
-      ? `<button type="button" data-birim="${item.birim}" data-alt="${item.alt_birim}" data-label="${item.label}">${item.label}</button>`
-      : kind==='personel'
-        ? `<button type="button" data-id="${item.id}" data-label="${item.label}">${item.label}<small>${item.birim || ''}</small></button>`
-        : `<button type="button" data-id="${item.id}" data-label="${item.label}">${item.label}<small>${item.username}</small></button>`
-    ).join('') || '<div class="no-result">Sonu&#231; yok</div>';
-    results.classList.add('open');
-    results.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{
-      input.value=button.dataset.label;
-      if(kind==='birim'){
-        picker.querySelector('input[name="birim"]').value=button.dataset.birim;
-        picker.querySelector('input[name="alt_birim"]').value=button.dataset.alt;
-      } else if(kind==='personel') picker.querySelector('input[name="personel"]').value=button.dataset.id;
-      else picker.querySelector('input[name="imzalayan"]').value=button.dataset.id;
-      results.innerHTML=''; results.classList.remove('open');
-    }));
+  const modal = document.createElement('div');
+  modal.className = 'picker-modal-backdrop';
+  modal.innerHTML = '<div class="picker-modal" role="dialog" aria-modal="true"><div class="picker-modal-head"><div><strong></strong><span>Yazarak arayabilir veya listeden se\u00e7ebilirsiniz.</span></div><button type="button" class="picker-modal-close">\u00d7</button></div><div class="picker-modal-search"><input type="text" placeholder="Arama metni yaz"><button type="button">Ara</button></div><div class="picker-modal-results"></div></div>';
+  document.body.appendChild(modal);
+  const modalTitle = modal.querySelector('.picker-modal-head strong');
+  const modalInput = modal.querySelector('.picker-modal-search input');
+  const modalSearch = modal.querySelector('.picker-modal-search button');
+  const modalResults = modal.querySelector('.picker-modal-results');
+  let activePicker = null;
+  let searchTimer = null;
+  const titles = {birim:'Birim Se\u00e7', personel:'Personel Se\u00e7', kullanici:'\u0130mzalayan Kullan\u0131c\u0131 Se\u00e7'};
+  function endpointFor(kind){
+    if(kind === 'birim') return '{% url "birim_ara" %}';
+    if(kind === 'personel') return '{% url "personel_ara" %}';
+    return '{% url "kullanici_ara" %}';
   }
+  function closePicker(){
+    modal.classList.remove('open');
+    activePicker = null;
+    modalResults.innerHTML = '';
+  }
+  function itemHtml(kind, item){
+    if(kind === 'birim'){
+      return `<button type="button" class="picker-option" data-birim="${escapeHtml(item.birim)}" data-alt="${escapeHtml(item.alt_birim)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong></button>`;
+    }
+    if(kind === 'personel'){
+      return `<button type="button" class="picker-option" data-id="${escapeHtml(item.id)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.birim || '')}</small></button>`;
+    }
+    return `<button type="button" class="picker-option" data-id="${escapeHtml(item.id)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.username || '')}</small></button>`;
+  }
+  function chooseOption(button){
+    if(!activePicker) return;
+    const kind = activePicker.dataset.kind;
+    const input = activePicker.querySelector('.picker-line input[type="text"]');
+    input.value = button.dataset.label || '';
+    if(kind === 'birim'){
+      activePicker.querySelector('input[name="birim"]').value = button.dataset.birim || '';
+      activePicker.querySelector('input[name="alt_birim"]').value = button.dataset.alt || '';
+    } else if(kind === 'personel'){
+      activePicker.querySelector('input[name="personel"]').value = button.dataset.id || '';
+    } else {
+      activePicker.querySelector('input[name="imzalayan"]').value = button.dataset.id || '';
+    }
+    closePicker();
+  }
+  async function searchActive(){
+    if(!activePicker) return;
+    const kind = activePicker.dataset.kind;
+    const q = modalInput.value.trim();
+    modalResults.innerHTML = '<div class="picker-loading">Aran\u0131yor...</div>';
+    const response = await fetch(endpointFor(kind) + '?q=' + encodeURIComponent(q));
+    const data = await response.json();
+    const results = data.results || [];
+    modalResults.innerHTML = results.length ? results.map(item => itemHtml(kind, item)).join('') : '<div class="no-result">Sonu\u00e7 bulunamad\u0131.</div>';
+    modalResults.querySelectorAll('.picker-option').forEach(button => button.addEventListener('click', () => chooseOption(button)));
+  }
+  function openPicker(picker){
+    activePicker = picker;
+    const kind = picker.dataset.kind;
+    const input = picker.querySelector('.picker-line input[type="text"]');
+    modalTitle.textContent = titles[kind] || 'Se\u00e7im Yap';
+    modalInput.value = input.value || '';
+    modal.classList.add('open');
+    modalInput.focus();
+    searchActive();
+  }
+  modal.querySelector('.picker-modal-close').addEventListener('click', closePicker);
+  modal.addEventListener('click', event => { if(event.target === modal) closePicker(); });
+  modalSearch.addEventListener('click', searchActive);
+  modalInput.addEventListener('keydown', event => { if(event.key === 'Enter'){ event.preventDefault(); searchActive(); } });
+  modalInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(searchActive, 250);
+  });
+  document.addEventListener('keydown', event => { if(event.key === 'Escape' && modal.classList.contains('open')) closePicker(); });
+
   document.querySelectorAll('.filter-picker').forEach(picker=>{
-    const input=picker.querySelector('.picker-line input[type="text"]');
-    picker.querySelector('.search-btn').addEventListener('click',()=>search(picker));
-    input.addEventListener('input',()=>{ picker.querySelectorAll('input[type="hidden"]').forEach(hidden=>hidden.value=''); search(picker); });
-    picker.querySelector('.clear-btn').addEventListener('click',()=>reset(picker));
+    const textInput = picker.querySelector('.picker-line input[type="text"]');
+    picker.querySelector('.search-btn').addEventListener('click',()=>openPicker(picker));
+    textInput.addEventListener('focus',()=>openPicker(picker));
+    textInput.addEventListener('click',()=>openPicker(picker));
+    textInput.addEventListener('input',()=>{ picker.querySelectorAll('input[type="hidden"]').forEach(hidden=>hidden.value=''); });
+    picker.querySelector('.clear-btn').addEventListener('click', event=>{ event.preventDefault(); event.stopPropagation(); reset(picker); });
   });
   document.querySelectorAll('.row-menu-trigger').forEach(button => {
     button.addEventListener('click', event => {
@@ -136,6 +194,18 @@
     });
   });
   document.addEventListener('click', () => document.querySelectorAll('.row-menu.open').forEach(menu => menu.classList.remove('open')));
+  document.querySelectorAll('.delete-leave-form').forEach(form => {
+    form.addEventListener('submit', event => {
+      const evrakNo = form.dataset.evrakNo || '';
+      if(form.dataset.approved === '1'){
+        const pass = window.prompt(`${evrakNo} numaral\u0131 onaylanan evrak silinecek. Y\u00f6netici \u015fifrenizi girin:`);
+        if(!pass){ event.preventDefault(); return; }
+        form.querySelector('input[name="yonetici_sifre"]').value = pass;
+        return;
+      }
+      if(!window.confirm(`${evrakNo} numaral\u0131 izin evrak\u0131 silinsin mi?`)) event.preventDefault();
+    });
+  });
   const perPage = document.getElementById('perPageSelect');
   if(perPage){
     perPage.addEventListener('change', () => {

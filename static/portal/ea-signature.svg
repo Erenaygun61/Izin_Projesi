@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 140" role="img" aria-label="EA">
+  <defs>
+    <linearGradient id="ink" x1="24" y1="118" x2="224" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#052866"/>
+      <stop offset=".55" stop-color="#083f93"/>
+      <stop offset="1" stop-color="#031d55"/>
+    </linearGradient>
+    <filter id="soft" x="-10%" y="-18%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="2.2" stdDeviation="1.6" flood-color="#001a45" flood-opacity=".24"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)" fill="none" stroke="url(#ink)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- E -->
+    <path d="M83 23
+             C61 10 30 19 18 42
+             C7 62 19 75 48 72
+             C71 70 91 57 87 47
+             C83 35 50 41 30 62
+             C10 83 16 104 42 105
+             C70 106 98 84 119 62"
+          stroke-width="6.4"/>
+
+    <!-- E'den A'ya çıkan ana imza çizgisi -->
+    <path d="M45 130
+             C75 92 111 48 171 8"
+          stroke-width="6.2"/>
+
+    <!-- A dik ayağı -->
+    <path d="M171 8
+             C176 7 179 11 177 19
+             L160 108"
+          stroke-width="6.4"/>
+
+    <!-- A iç yayı -->
+    <path d="M105 72
+             C125 60 151 61 171 72"
+          stroke-width="5.8"/>
+
+    <!-- Sağ yatay kuyruk -->
+    <path d="M106 73
+             C145 72 184 72 237 71"
+          stroke-width="5.2"/>
+  </g>
+</svg>

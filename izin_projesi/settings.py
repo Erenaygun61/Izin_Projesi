@@ -1,5 +1,5 @@
-"""
-Django settings for ?zin_Projesi.
+﻿"""
+Django settings for İzin_Projesi.
 Personel izin portal?, ana maa? program?n?n veritaban?n? kullan?r.
 """
 import os
@@ -14,6 +14,10 @@ MAAS_PROJESI_DB = Path(os.environ.get(
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-izin-portali-local-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1").strip().lower() in {"1", "true", "yes", "on"}
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]
+
+SESSION_COOKIE_NAME = os.environ.get("DJANGO_SESSION_COOKIE_NAME", "izin_sessionid")
+CSRF_COOKIE_NAME = os.environ.get("DJANGO_CSRF_COOKIE_NAME", "izin_csrftoken")
+CSRF_FAILURE_VIEW = "izin_projesi.views.csrf_failure"
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -50,3 +54,4 @@ LOGIN_URL = "/giris/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/giris/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+

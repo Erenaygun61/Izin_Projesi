@@ -39,12 +39,12 @@
 </form>
 <script>
 (function(){
-  async function searchUsers(picker){
+  async function searchUsers(picker, forceList=false){
     const input = picker.querySelector('.picker-line input[type="text"]');
     const hidden = picker.querySelector('input[type="hidden"]');
     const results = picker.querySelector('.picker-results');
     const q = input.value.trim();
-    if(q.length < 2){ results.innerHTML=''; results.classList.remove('open'); return; }
+    if(q.length < 2 && !forceList){ results.innerHTML=''; results.classList.remove('open'); return; }
     const response = await fetch('{% url "kullanici_ara" %}?q=' + encodeURIComponent(q));
     const data = await response.json();
     results.innerHTML = data.results.map(u => `<button type="button" data-id="${u.id}" data-label="${u.label}">${u.label}<small>${u.username}</small></button>`).join('') || '<div class="no-result">Sonu&#231; yok</div>';
@@ -54,7 +54,7 @@
   document.querySelectorAll('.person-picker').forEach(picker => {
     const input = picker.querySelector('.picker-line input[type="text"]');
     const hidden = picker.querySelector('input[type="hidden"]');
-    picker.querySelector('.search-btn').addEventListener('click', () => searchUsers(picker));
+    picker.querySelector('.search-btn').addEventListener('click', () => searchUsers(picker, true));
     input.addEventListener('input', () => { hidden.value=''; searchUsers(picker); });
     picker.querySelector('.clear-btn').addEventListener('click', () => { hidden.value=''; input.value=''; picker.querySelector('.picker-results').innerHTML=''; picker.querySelector('.picker-results').classList.remove('open'); });
   });

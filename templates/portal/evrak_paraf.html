@@ -3,9 +3,16 @@
 {% block title %}Paraf{% endblock %}
 {% block page_title %}Paraf{% endblock %}
 {% block content %}
+{% if talep.durum == "REDDEDILDI" and talep.aciklama %}
+<aside class="reject-floating-note" id="rejectReasonNote">
+    <button type="button" class="reject-note-close" aria-label="Red nedeni notunu kapat">&times;</button>
+    <h3>Red Nedeni</h3>
+    <p>{{ talep.aciklama }}</p>
+</aside>
+{% endif %}
 <section class="paraf-layout {% if indir %}print-mode{% endif %}">
     <div class="evrak-viewer">
-        <div class="viewer-bar"><span>&#9776;</span><strong>&#304;zin &#304;ste&#287;i {{ talep.evrak_no }}</strong><em>1 / 1</em><a class="viewer-download" href="{% url 'evrak_indir' talep.id %}?format=pdf">PDF &#304;ndir</a><button type="button" title="Yazd&#305;r" onclick="window.print()">&#128424;</button></div>
+        <div class="viewer-bar"><span>&#9776;</span><strong>&#304;zin &#304;ste&#287;i {{ talep.evrak_no }}</strong><em>1 / 1</em><a class="viewer-download" href="{% url 'evrak_indir' talep.id %}?format=pdf">PDF &#304;ndir</a><a class="viewer-print" href="{% url 'evrak_indir' talep.id %}?format=pdf&amp;inline=1" target="_blank" rel="noopener" title="PDF belgesini yazd&#305;r"><span aria-hidden="true">&#128424;</span> Yazd&#305;r</a></div>
         <div class="paper-page">
             <div class="doc-antet">
                 <img class="doc-logo left" src="/static/portal/trabzon-buyuksehir-logo.jpg" alt="Trabzon B&#252;y&#252;k&#351;ehir Belediyesi">
@@ -16,26 +23,27 @@
                 </div>
                 <img class="doc-logo right" src="/static/portal/logo1.png" alt="T&#304;SK&#304;">
             </div>
+            <div class="doc-accent-line" aria-hidden="true"><span></span></div>
             <div class="doc-number">Evrak Tarih ve Say&#305;s&#305;: {{ talep.kurum_kayit_tarihi|date:"d/m/Y" }} - E.{{ talep.evrak_no }}</div>
             <h3 class="doc-subtitle">&#304;Z&#304;N &#304;STE&#286;&#304; ONAYI</h3>
             <table class="izin-table">
                 <tr><th>Birimi</th><td colspan="3" class="unit-value"><strong>{{ personel.gorev_birimi }}</strong>{% if personel.alt_birimi %}<span class="unit-divider"></span><span>{{ personel.alt_birimi }}</span>{% endif %}</td></tr>
                 <tr><th>Ad&#305; Soyad&#305;</th><td>{{ personel.ad_soyad|ad_soyad_yazimi }}</td><th>Ait Oldu&#287;u Y&#305;l</th><td>{{ talep.ait_oldugu_yil }}</td></tr>
-                <tr><th>G&#246;revi</th><td>{{ personel.unvani }}</td><th>&#304;zin Ba&#351;lang&#305;&#231; Tarihi</th><td>{{ talep.baslangic_tarihi|date:"d/m/Y" }}</td></tr>
+                <tr><th>G&#246;revi</th><td>{{ personel|belge_gorevi }}</td><th>&#304;zin Ba&#351;lang&#305;&#231; Tarihi</th><td>{{ talep.baslangic_tarihi|date:"d/m/Y" }}</td></tr>
                 <tr><th>T.C. Kimlik No</th><td>{{ personel.tc_no }}</td><th>&#304;zin Biti&#351; Tarihi</th><td>{{ talep.bitis_tarihi|date:"d/m/Y" }}</td></tr>
                 <tr><th>Kurum Sicil No</th><td>{{ personel.sicil_no }}</td><th>G&#246;reve Ba&#351;lama Tarihi</th><td>{{ goreve_baslama_tarihi|date:"d/m/Y" }}</td></tr>
                 <tr><th>&#304;zin T&#252;r&#252;</th><td>{{ talep.izin_turu.ad }}</td><th>Toplam &#304;zin</th><td>{{ talep.izin_hakki|izin_gunu }}</td></tr>
                 <tr><th colspan="2">Talep Etti&#287;i &#304;zin S&#252;resi</th><td colspan="2">{{ talep.kullanilan_gun|izin_gunu }}</td></tr>
             </table>
-            <div class="doc-note"><strong>A&#231;&#305;klama:</strong><br>{% if talep.izin_turu.yillik_izin_mi %}&nbsp;&nbsp;&nbsp;&nbsp;&#214;zel i&#351;lerimden dolay&#305; {{ talep.ait_oldugu_yil }} y&#305;l&#305; y&#305;ll&#305;k iznimden {{ talep.kullanilan_gun|izin_gunu }} g&#252;n izin kullanmak istiyorum.{% else %}&nbsp;&nbsp;&nbsp;&nbsp;{{ talep.izin_turu.ad }} kullanmak istiyorum.{% endif %}<br><br>Gere&#287;ini arz ederim.<span class="remaining-note">Kalan &#304;zin S&#252;resi: {{ talep.kalan_izin|izin_gunu }}</span><br><strong>Stat&#252;: {{ talep.get_personel_tipi_display|upper }}</strong></div>
-            <div class="requester-box"><strong>&#304;zin Talebinde Bulunan</strong><div>Cep Telefonu: {{ personel.cep_tel|default:"-" }}</div></div>
+            <div class="doc-note"><strong>A&#231;&#305;klama:</strong><br>{% if talep.izin_turu.yillik_izin_mi %}{{ talep.ait_oldugu_yil }} y&#305;l&#305; y&#305;ll&#305;k iznimden {{ talep.kullanilan_gun|izin_gunu }} g&#252;n izin kullanmak istiyorum.{% else %}{{ talep.izin_turu.ad }} kullanmak istiyorum.{% endif %}<br><br>Gere&#287;ini arz ederim.<span class="remaining-note">Kalan &#304;zin S&#252;resi: {{ talep.kalan_izin|izin_gunu }}</span><br><strong>Stat&#252;:</strong> {{ talep.get_personel_tipi_display }}</div>
+            <div class="requester-box"><div><strong>Cep Telefonu:</strong> {% firstof talep.cep_telefonu personel.cep_tel "-" %}</div></div>
             <div class="signature-grid request-signatures">
-                <div class="signature-box"><span>{% if talep.durum == "TASLAK" %}Taslak{% else %}e-Parafl&#305;d&#305;r{% endif %}</span><span class="signature-name">{{ personel.ad_soyad|ad_soyad_yazimi }}</span><em>{{ personel.unvani }}</em></div>
+                <div class="signature-box"><span class="applicant-label">&#304;zin Talebinde Bulunan</span><span class="signature-gap"></span><span>{% if talep|paraf_verdi_mi:talep.kullanici %}e-Parafl&#305;d&#305;r{% else %}Paraf Bekliyor{% endif %}</span><span class="signature-name">{{ personel.ad_soyad|ad_soyad_yazimi }}</span><em>{{ personel|belge_gorevi }}</em></div>
                 {% for rol,user in imzacilar %}{% if forloop.first and not forloop.last %}
-                    <div class="signature-box"><span class="offer-label">Teklif Eden</span><span>{% if talep.durum == "ONAYLANDI" or talep.durum == "IMZA_SURECINDE" %}e-Parafl&#305;d&#305;r{% else %}Paraf Bekliyor{% endif %}</span><span class="signature-name">{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</span><em>{{ rol }}</em></div>
+                    <div class="signature-box"><span class="offer-label">Teklif Eden</span><span class="signature-gap"></span><span>{% if talep|paraf_verdi_mi:user %}e-Parafl&#305;d&#305;r{% else %}Paraf Bekliyor{% endif %}</span><span class="signature-name">{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</span><em>{{ rol }}</em></div>
                 {% endif %}{% endfor %}
             </div>
-            {% for rol,user in imzacilar %}{% if forloop.last %}<div class="approval-box"><strong>Onaylayan</strong><span>{% if talep.durum == "ONAYLANDI" %}e-&#304;mzal&#305;d&#305;r{% else %}&#304;mza Bekliyor{% endif %}</span><b>{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</b><em>{{ rol }}</em></div>{% endif %}{% empty %}<div class="approval-box"><strong>Onaylayan</strong><em>Birimi i&#231;in imzac&#305; tan&#305;mlanmam&#305;&#351;.</em></div>{% endfor %}
+            {% for rol,user in imzacilar %}{% if forloop.last %}<div class="approval-box"><strong>Onaylayan</strong><span class="signature-gap"></span><span>{% if talep.durum == "ONAYLANDI" or talep.imza_tamamlanma_tarihi %}e-&#304;mzal&#305;d&#305;r{% else %}&#304;mza Bekliyor{% endif %}</span><b>{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</b><em>{{ rol }}</em></div>{% endif %}{% empty %}<div class="approval-box"><strong>Onaylayan</strong><em>Birimi i&#231;in imzac&#305; tan&#305;mlanmam&#305;&#351;.</em></div>{% endfor %}
             <div class="doc-footer"><strong>Kontrol Eden</strong><br>Personel &#304;zin Kontrol&#252;: {% if talep.kontrol_eden %}{{ talep.kontrol_eden.get_full_name|default:talep.kontrol_eden.username|ad_soyad_yazimi }}{% else %}Tan&#305;mlanmam&#305;&#351;{% endif %}</div>
         </div>
     </div>
@@ -52,7 +60,7 @@
             <dt>T.C. Kimlik No</dt><dd>{{ personel.tc_no }}</dd>
             <dt>&#199;al&#305;&#351;an Tipi</dt><dd>{{ talep.get_personel_tipi_display|upper }}</dd>
             <dt>Sicil No</dt><dd>{{ personel.sicil_no }}</dd>
-            <dt>Cep Telefonu</dt><dd>{{ personel.cep_tel }}</dd>
+            <dt>Cep Telefonu</dt><dd>{% firstof talep.cep_telefonu personel.cep_tel "-" %}</dd>
             <dt>&#304;zin T&#252;r&#252;</dt><dd>{{ talep.izin_turu.ad }}</dd>
             <dt>Ait Oldu&#287;u Y&#305;l</dt><dd>{{ talep.ait_oldugu_yil }}</dd>
             <dt>&#304;zin Hakk&#305; (G&#252;n)</dt><dd>{{ talep.izin_hakki|izin_gunu }}</dd>
@@ -67,9 +75,9 @@
     <textarea name="red_nedeni" form="rejectForm" rows="3" placeholder="Evrak reddedilecekse nedeni buraya yaz&#305;n."></textarea>
 </section>
 <div class="paraf-actions">
-    <form method="post" action="{% url 'evrak_paraf' talep.id %}">{% csrf_token %}<input type="hidden" name="islem" value="{% if son_imzaci_mi %}imzala{% else %}parafla{% endif %}"><button class="green-action">{% if son_imzaci_mi %}&#304;mzala{% else %}Parafla{% endif %} &#10004;</button></form>
+    <form method="post" action="{% url 'evrak_paraf' talep.id %}" class="flow-confirm-form" data-confirm-kind="approve" data-confirm-title="{% if son_imzaci_mi %}Evrak &#304;mzalans&#305;n m&#305;?{% else %}Evrak Paraflans&#305;n m&#305;?{% endif %}" data-confirm-message="{% if son_imzaci_mi %}{% else %}Bu i&#351;lemden sonra evrak s&#305;radaki kullan&#305;c&#305;ya aktar&#305;lacak.{% endif %}">{% csrf_token %}<input type="hidden" name="islem" value="{% if son_imzaci_mi %}imzala{% else %}parafla{% endif %}"><button class="green-action">{% if son_imzaci_mi %}&#304;mzala{% else %}Parafla{% endif %} &#10004;</button></form>
     <details class="download-menu"><summary>&#304;ndir &#11015;</summary><a href="{% url 'evrak_indir' talep.id %}?format=pdf">PDF &#304;ndir</a><a href="{% url 'evrak_indir' talep.id %}?format=excel">Excel &#304;ndir</a></details>
-    <form id="rejectForm" method="post" action="{% url 'evrak_paraf' talep.id %}">{% csrf_token %}<input type="hidden" name="islem" value="reddet"><button class="danger-action">Paraflamay&#305; Reddet</button></form>
+    <form id="rejectForm" method="post" action="{% url 'evrak_paraf' talep.id %}" class="flow-confirm-form" data-confirm-kind="delete" data-confirm-title="Evrak Reddedilsin mi?" data-confirm-message="Red nedeni yaz&#305;ld&#305;ysa evrak reddedilecek ve s&#252;re&#231; duracak.">{% csrf_token %}<input type="hidden" name="islem" value="reddet"><button class="danger-action">Paraflamay&#305; Reddet</button></form>
     <a class="danger-action" href="{% url 'dashboard' %}">Vazge&#231;</a>
 </div>
 {% elif not indir %}
@@ -79,4 +87,45 @@
     <a class="danger-action" href="{% url 'dashboard' %}">Vazge&#231;</a>
 </div>
 {% endif %}
+<script>
+(function(){
+  const note = document.getElementById('rejectReasonNote');
+  if(note){
+    const close = note.querySelector('.reject-note-close');
+    if(close) close.addEventListener('click', () => note.remove());
+  }
+  const forms = document.querySelectorAll('.flow-confirm-form');
+  if(!forms.length) return;
+  const modal = document.createElement('div');
+  modal.className = 'confirm-modal-backdrop';
+  modal.innerHTML = '<div class="confirm-modal" role="dialog" aria-modal="true"><div class="confirm-icon">!</div><h2></h2><p></p><div class="confirm-actions"><button type="button" class="confirm-cancel">Vazge\u00e7</button><button type="button" class="confirm-ok">Onayla</button></div></div>';
+  document.body.appendChild(modal);
+  const box = modal.querySelector('.confirm-modal');
+  const title = modal.querySelector('h2');
+  const message = modal.querySelector('p');
+  const ok = modal.querySelector('.confirm-ok');
+  const cancel = modal.querySelector('.confirm-cancel');
+  let pendingForm = null;
+  function closeModal(){ modal.classList.remove('open'); pendingForm = null; }
+  cancel.addEventListener('click', closeModal);
+  modal.addEventListener('click', event => { if(event.target === modal) closeModal(); });
+  ok.addEventListener('click', () => {
+    if(!pendingForm) return;
+    pendingForm.dataset.confirmed = '1';
+    pendingForm.submit();
+  });
+  forms.forEach(form => form.addEventListener('submit', event => {
+    if(form.dataset.confirmed === '1') return;
+    event.preventDefault();
+    pendingForm = form;
+    const danger = form.dataset.confirmKind === 'delete';
+    box.classList.toggle('danger', danger);
+    box.classList.toggle('approve', !danger);
+    title.textContent = form.dataset.confirmTitle || '\u0130\u015flem onaylans\u0131n m\u0131?';
+    message.textContent = form.dataset.confirmMessage || 'Bu i\u015flemi yapmak istedi\u011finize emin misiniz?';
+    ok.textContent = danger ? 'Evet, Reddet' : 'Evet, Onayla';
+    modal.classList.add('open');
+  }));
+})();
+</script>
 {% endblock %}

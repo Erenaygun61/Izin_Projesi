@@ -5,45 +5,118 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>T&#304;SK&#304; | &#304;zin Portal&#305;</title>
-    <link rel="stylesheet" href="/static/portal/login.css?v=52">
+    <link rel="stylesheet" href="/static/portal/login.css?v=60">
 </head>
 <body class="login-page">
-    <button class="corner-menu" aria-label="Men&#252;">&#9638;</button>
     <main class="login-center">
-        <section class="logo-banner" aria-label="T&#304;SK&#304; Logo">
-            <img src="/static/portal/antet.png" alt="T&#304;SK&#304;">
-        </section>
-        <section class="login-window">
-            <div class="avatar-box" aria-hidden="true">
-                <div class="avatar-circle"></div>
-                <div class="avatar-shoulder"></div>
-            </div>
-            <form method="post" class="credential-box">
-                {% csrf_token %}
-                <div class="domain-title">
-                    <span class="flow-icon" aria-hidden="true"><i></i><i></i><i></i></span>
-                    <strong>T&#304;SK&#304;.local Etki Alan&#305; Kullan&#305;c&#305; Bilgileri</strong>
-                </div>
-                {% if form.errors %}<div class="login-error">Kullan&#305;c&#305; ad&#305; veya &#351;ifre hatal&#305;.</div>{% endif %}
-                <label for="{{ form.username.id_for_label }}">Kullan&#305;c&#305; &#304;smi</label>
-                <div class="field-line">
-                    <span class="field-symbol user-symbol" aria-hidden="true"></span>
-                    {{ form.username }}
-                </div>
-                <label for="{{ form.password.id_for_label }}">&#350;ifre</label>
-                <div class="field-line password-line">
-                    <span class="field-symbol key-symbol" aria-hidden="true"></span>
-                    {{ form.password }}
-                </div>
-                <div class="lower-row">
-                    <label class="remember"><input type="checkbox"> <span>Beni Hat&#305;rla</span></label>
-                    <button type="submit" title="Giri&#351;">&#10140;</button>
-                </div>
-            </form>
-        </section>
-        <div class="social-row"><span>f</span><span>t</span></div>
-        <div class="lang-line"><span class="globe"></span> T&#252;rk&#231;e</div>
+        <div class="login-shell">
+            <header class="logo-banner" aria-label="T&#304;SK&#304;">
+                <img src="/static/portal/antet.png" alt="T&#304;SK&#304;">
+            </header>
+
+            <section class="login-card">
+                <aside class="water-panel" aria-hidden="true">
+                    <span class="water-bubble water-bubble-one"></span>
+                    <span class="water-bubble water-bubble-two"></span>
+                    <span class="water-bubble water-bubble-three"></span>
+                    <svg class="water-drop" viewBox="0 0 220 260" role="img">
+                        <defs>
+                            <linearGradient id="dropGradient" x1="25%" y1="10%" x2="78%" y2="92%">
+                                <stop offset="0%" stop-color="#d9fff4"/>
+                                <stop offset="38%" stop-color="#4ed7c8"/>
+                                <stop offset="100%" stop-color="#168fd0"/>
+                            </linearGradient>
+                            <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#9be44e"/>
+                                <stop offset="100%" stop-color="#29c8bc"/>
+                            </linearGradient>
+                            <filter id="dropShadow" x="-30%" y="-30%" width="160%" height="170%">
+                                <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#063d59" flood-opacity=".25"/>
+                            </filter>
+                        </defs>
+                        <path filter="url(#dropShadow)" fill="url(#dropGradient)"
+                              d="M110 13C91 44 40 101 40 158c0 44 31 79 70 79s70-35 70-79c0-57-51-114-70-145z"/>
+                        <path fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".75"
+                              d="M76 154c0-23 12-45 29-61"/>
+                        <path fill="none" stroke="url(#waveGradient)" stroke-width="11" stroke-linecap="round"
+                              d="M57 185c22-13 41 13 64 0 20-11 34-1 44 6"/>
+                        <circle cx="79" cy="122" r="7" fill="#fff" opacity=".62"/>
+                    </svg>
+                    <div class="water-copy">
+                        <strong>Personel &#304;zin Portal&#305;</strong>
+                        <span>G&#252;venli, h&#305;zl&#305; ve izlenebilir izin y&#246;netimi</span>
+                    </div>
+                </aside>
+
+                <form method="post" class="credential-panel">
+                    {% csrf_token %}
+                    <div class="portal-kicker">
+                        <span class="network-icon" aria-hidden="true">
+                            <i></i><i></i><i></i>
+                        </span>
+                        <div>
+                            <strong>T&#304;SK&#304;.local</strong>
+                            <span>Etki Alan&#305; Kullan&#305;c&#305; Bilgileri</span>
+                        </div>
+                    </div>
+
+                    <div class="welcome-copy">
+                        <h1>Ho&#351; geldiniz</h1>
+                        <p>Kurumsal kullan&#305;c&#305; bilgilerinizle devam edin.</p>
+                    </div>
+
+                    {% if messages %}
+                        {% for message in messages %}<div class="login-error">{{ message }}</div>{% endfor %}
+                    {% endif %}
+                    {% if form.errors %}
+                        <div class="login-error">Kullan&#305;c&#305; ad&#305; veya &#351;ifre hatal&#305;.</div>
+                    {% endif %}
+
+                    <label for="{{ form.username.id_for_label }}">Kullan&#305;c&#305; Ad&#305;</label>
+                    <div class="input-shell">
+                        <span class="input-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="8" r="4"></circle>
+                                <path d="M4.5 21c.4-5 3-7.5 7.5-7.5s7.1 2.5 7.5 7.5"></path>
+                            </svg>
+                        </span>
+                        {{ form.username }}
+                    </div>
+
+                    <label for="{{ form.password.id_for_label }}">&#350;ifre</label>
+                    <div class="input-shell">
+                        <span class="input-icon key-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="8" cy="12" r="4"></circle>
+                                <path d="M12 12h8m-3 0v3m-3-3v2"></path>
+                            </svg>
+                        </span>
+                        {{ form.password }}
+                    </div>
+
+                    <div class="form-actions">
+                        <label class="remember">
+                            <input type="checkbox">
+                            <span>Beni Hat&#305;rla</span>
+                        </label>
+                        <button type="submit">
+                            <span>Giri&#351; Yap</span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 12h13m-5-5 5 5-5 5"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </div>
     </main>
-    <footer class="system-footer"><span class="vmark">V</span><strong>TRABZON &#304;&#199;MESUYU VE KANAL&#304;ZASYON &#304;DARES&#304;</strong>&nbsp; &#304;Z&#304;N S&#304;STEM&#304;</footer>
+
+    <footer class="system-footer">
+        <span class="ea-footer-signature" aria-hidden="true">
+            <img src="/static/portal/ea-signature.png?v=2" alt="">
+        </span>
+        <span>TRABZON &#304;&#199;MESUYU VE KANAL&#304;ZASYON &#304;DARES&#304; GENEL M&#220;D&#220;RL&#220;&#286;&#220;</span>
+        <strong>&#304;Z&#304;N S&#304;STEM&#304;</strong>
+    </footer>
 </body>
 </html>

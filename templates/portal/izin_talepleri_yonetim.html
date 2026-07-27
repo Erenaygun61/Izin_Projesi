@@ -6,7 +6,7 @@
 <section class="section-head colorful-head">
     <p class="eyebrow">Y&#246;netim</p>
     <h2>&#304;zin talep ak&#305;&#351;&#305;</h2>
-    <p>Yetkili kullan&#305;c&#305;lar burada imzada bekleyen evrak&#305; kontrol a&#351;amas&#305;na geri &#231;ekebilir veya sahibine iade edebilir.</p>
+    <p>Yetkili kullan&#305;c&#305;lar burada aktif izin evraklar&#305;n&#305; takip eder; onaylanmam&#305;&#351; evrak&#305; geri &#231;ekebilir/iade edebilir. Onaylanan evrak ak&#305;&#351;a geri d&#246;nd&#252;r&#252;lemez.</p>
 </section>
 <section class="search-filter-panel">
     <h2>&#128269; Filtrele</h2>
@@ -16,7 +16,7 @@
         <div class="search-actions"><a href="{% url 'izin_talepleri_yonetim' %}" class="danger-action small">Temizle</a><button class="green-action">Ara</button></div>
     </form>
 </section>
-<section class="evrak-table-wrap">
+<section class="evrak-table-wrap management-flow-table">
     <table class="evrak-search-table"><thead><tr><th>Evrak No</th><th>Personel</th><th>Birim</th><th>T&#252;r</th><th>Tarih</th><th>G&#252;n</th><th>Durum</th><th>Kimin &#220;zerinde</th><th>Not</th><th>&#304;&#351;lem</th></tr></thead><tbody>
     {% for row in rows %}
         <tr class="row-{{ row.talep.durum|lower }}">
@@ -35,8 +35,13 @@
                 </form>
             </td>
             <td class="flow-actions">
-                {% if geri_cekebilir %}<button form="flow{{ row.talep.id }}" name="islem" value="geri_cek" class="outline-action">&#8634; Geri &#199;ek</button>{% endif %}
-                {% if iade_edebilir %}<button form="flow{{ row.talep.id }}" name="islem" value="sahibine_iade" class="danger-action">Sahibine &#304;ade</button>{% endif %}
+                {% if row.talep.durum != "ONAYLANDI" %}
+                    {% if row.can_geri_cek %}<button form="flow{{ row.talep.id }}" name="islem" value="geri_cek" class="outline-action">&#8634; Geri &#199;ek</button>{% endif %}
+                    {% if row.can_iade %}<button form="flow{{ row.talep.id }}" name="islem" value="sahibine_iade" class="danger-action">Sahibine &#304;ade</button>{% endif %}
+                {% else %}
+                    <span class="locked-flow">&#128274; Onayl&#305;</span>
+                {% endif %}
+                {% if row.can_delete %}<button form="flow{{ row.talep.id }}" name="islem" value="izin_sil" class="danger-action delete-management-btn" data-evrak-no="{{ row.talep.evrak_no }}" data-approved="{% if row.talep.durum == 'ONAYLANDI' %}1{% else %}0{% endif %}">Sil</button>{% endif %}
                 <a class="outline-action" href="{% url 'evrak_paraf' row.talep.id %}">A&#231;</a>
                 <a class="preview-action" href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#214;nizleme</a>
             </td>
@@ -46,4 +51,27 @@
     {% endfor %}
     </tbody></table>
 </section>
+<script>
+(function(){
+  document.querySelectorAll('.delete-management-btn').forEach(button => {
+    button.addEventListener('click', event => {
+      const evrakNo = button.dataset.evrakNo || '';
+      if(button.dataset.approved === '1'){
+        const pass = window.prompt(`${evrakNo} numaralı onaylanan evrak silinecek. Yönetici şifrenizi girin:`);
+        if(!pass){ event.preventDefault(); return; }
+        let hidden = button.form.querySelector('input[name="yonetici_sifre"]');
+        if(!hidden){
+          hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = 'yonetici_sifre';
+          button.form.appendChild(hidden);
+        }
+        hidden.value = pass;
+        return;
+      }
+      if(!window.confirm(`${evrakNo} numaralı izin evrakı silinsin mi?`)) event.preventDefault();
+    });
+  });
+})();
+</script>
 {% endblock %}

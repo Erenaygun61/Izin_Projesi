@@ -12,13 +12,13 @@
     <div class="task-list" id="taskList">
         {% for talep in gorevler %}
             <div class="task-item task-{{ talep.durum|lower }}">
-                {% if talep.durum == "TASLAK" or talep.durum == "IADE_EDILDI" or talep.durum == "REDDEDILDI" %}
+                {% if talep.durum == "TASLAK" or talep.durum == "IADE_EDILDI" or talep.durum == "REDDEDILDI" and talep.kullanici_id == request.user.id %}
                 <a class="task-main" href="{% url 'izin_talebi_duzenle' talep.id %}">
                 {% else %}
                 <a class="task-main" href="{% url 'evrak_paraf' talep.id %}">
                 {% endif %}
                     <span class="task-icon">{% if talep.durum == "TASLAK" %}&#9998;{% elif talep.durum == "REDDEDILDI" %}&#10007;{% elif talep.durum == "IADE_EDILDI" %}&#8617;{% else %}&#8505;{% endif %}</span>
-                    <div><strong>{% if talep.durum == "TASLAK" %}Evrak Bilgilerini G&#252;ncelle{% elif talep.durum == "IADE_EDILDI" %}&#304;ade edilen evrak bilgilerini g&#252;ncelle{% elif talep.durum == "REDDEDILDI" %}Reddedilen evrak&#305; d&#252;zenle{% elif talep.durum == "PARAF_BEKLIYOR" %}Kontrol&#252;n&#252;z i&#231;in izin evrak&#305; gelmi&#351;tir.{% else %}Paraf/imzan&#305;z i&#231;in izin evrak&#305; gelmi&#351;tir.{% endif %} (&#304;zin iste&#287;i {{ talep.evrak_no }})</strong><em>{{ talep.kullanici.get_full_name|default:talep.kullanici.username }} / {% if talep.izin_turu %}{{ talep.izin_turu.ad }}{% else %}&#304;zin t&#252;r&#252; se&#231;ilmedi{% endif %}</em></div>
+                    <div><strong>{% if talep.durum == "TASLAK" %}Evrak Bilgilerini G&#252;ncelle{% elif talep.durum == "IADE_EDILDI" %}&#304;ade edilen evrak bilgilerini g&#252;ncelle{% elif talep.durum == "REDDEDILDI" and talep.kontrol_eden_id == request.user.id and talep.kullanici_id != request.user.id %}{{ talep.kullanici.get_full_name|default:talep.kullanici.username }} izin evrak&#305; reddedildi. Dosyas&#305;na i&#351;leyiniz.{% elif talep.durum == "REDDEDILDI" %}&#304;zin evrak&#305;n&#305;z reddedildi.{% elif talep.durum == "PARAF_BEKLIYOR" %}Kontrol&#252;n&#252;z i&#231;in izin evrak&#305; gelmi&#351;tir.{% else %}Paraf/imzan&#305;z i&#231;in izin evrak&#305; gelmi&#351;tir.{% endif %} (&#304;zin iste&#287;i {{ talep.evrak_no }})</strong><em>{{ talep.kullanici.get_full_name|default:talep.kullanici.username }} / {% if talep.izin_turu %}{{ talep.izin_turu.ad }}{% else %}&#304;zin t&#252;r&#252; se&#231;ilmedi{% endif %}</em></div>
                     <time>{{ talep.olusturma_zamani|date:"d M H:i" }}</time>
                 </a>
                 <a class="task-preview" href="{% url 'evrak_onizleme' talep.id %}" target="_blank" rel="noopener">&#128065; &#214;nizleme</a>
@@ -28,7 +28,7 @@
             <div class="task-item task-onaylandi">
                 <a class="task-main" href="{% url 'evrak_onizleme' talep.id %}" target="_blank" rel="noopener">
                     <span class="task-icon">&#10003;</span>
-                    <div><strong>&#304;zin evrak&#305; imza s&#252;recinden &#231;&#305;kt&#305; ve onayland&#305;. Dosyas&#305;na i&#351;leyiniz. ({{ talep.evrak_no }})</strong><em>{% if talep.izin_turu %}{{ talep.izin_turu.ad }}{% endif %}</em></div>
+                    <div><strong>{% if talep.kullanici_id == request.user.id %}&#304;zin evrak&#305;n&#305;z imza s&#252;recinden &#231;&#305;kt&#305; ve onayland&#305;.{% else %}{{ talep.kullanici.get_full_name|default:talep.kullanici.username }} izin evrak&#305; imza s&#252;recinden &#231;&#305;kt&#305; ve onayland&#305;. Dosyas&#305;na i&#351;leyiniz.{% endif %} ({{ talep.evrak_no }})</strong><em>{% if talep.izin_turu %}{{ talep.izin_turu.ad }}{% endif %}</em></div>
                     <time>{{ talep.guncelleme_zamani|date:"d M H:i" }}</time>
                 </a>
                 <a class="task-preview" href="{% url 'evrak_onizleme' talep.id %}" target="_blank" rel="noopener">&#128065; &#214;nizleme</a>

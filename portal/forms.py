@@ -1,3 +1,5 @@
+﻿from decimal import Decimal
+
 from django import forms
 from django.utils import timezone
 from .models import IzinTalebi, IzinTuru
@@ -24,7 +26,7 @@ class TcSorguForm(forms.Form):
 
 def izin_sebebi_metni(izin_turu_ad):
     ad = (izin_turu_ad or "").lower()
-    if "y\u0131ll\u0131k" in ad or "y?ll?k" in ad:
+    if "y\u0131ll\u0131k" in ad:
         return "Y\u0131ll\u0131k izin kullanaca\u011f\u0131mdan dolay\u0131"
     if "mazeret" in ad:
         return "Mazeret izni kullanaca\u011f\u0131mdan dolay\u0131"
@@ -34,7 +36,7 @@ def izin_sebebi_metni(izin_turu_ad):
         return "Refakat izni kullanaca\u011f\u0131mdan dolay\u0131"
     if "sendika" in ad:
         return "Sendika izni kullanaca\u011f\u0131mdan dolay\u0131"
-    if "\u00fccretsiz" in ad or "?cretsiz" in ad:
+    if "\u00fccretsiz" in ad:
         return "\u00dccretsiz izin kullanaca\u011f\u0131mdan dolay\u0131"
     if "yol" in ad:
         return "Yol izni kullanaca\u011f\u0131mdan dolay\u0131"
@@ -53,7 +55,7 @@ class IzinEvrakForm(forms.ModelForm):
     class Meta:
         model = IzinTalebi
         fields = [
-            "evrak_no", "izin_turu",
+            "evrak_no", "cep_telefonu", "izin_turu",
             "ait_oldugu_yil", "izin_hakki", "kullanilan_gun", "kalan_izin",
             "baslangic_tarihi", "bitis_tarihi", "goreve_baslama_tarihi",
         ]
@@ -76,7 +78,7 @@ class IzinEvrakForm(forms.ModelForm):
     def __init__(self, *args, personel=None, haklar=None, calisan_tipi="Memur", imzacilar=None, next_evrak_no="", toplam_izin=None, taslak=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.taslak = taslak
-        self.fields["goreve_baslama_tarihi"].label = "G\u00f6reve Ba\u015flama Tarihi"
+        self.fields["goreve_baslama_tarihi"].label = "G\u00f6reve Ba\u015flama Tarihi (*)"
         self.fields["izin_turu"].queryset = IzinTuru.objects.filter(aktif_mi=True).order_by("ad")
         yillik = self.fields["izin_turu"].queryset.filter(yillik_izin_mi=True).first()
         if yillik and not self.initial.get("izin_turu"):
@@ -98,11 +100,11 @@ class IzinEvrakForm(forms.ModelForm):
         if personel:
             self.fields["tc_no"].initial = personel.tc_no
             self.fields["sicil_no"].initial = personel.sicil_no
-            self.fields["cep_telefonu"].initial = personel.cep_tel
+            self.fields["cep_telefonu"].initial = getattr(self.instance, "cep_telefonu", "") or personel.cep_tel
             self.fields["calisan_tipi"].initial = calisan_tipi
         if not self.instance.pk:
             self.fields["evrak_no"].initial = next_evrak_no
-        sistem_alanlari = {"evrakin_birimi", "evrak_no", "dosya_kodu", "konu", "tc_no", "calisan_tipi", "sicil_no", "cep_telefonu"}
+        sistem_alanlari = {"evrakin_birimi", "evrak_no", "dosya_kodu", "konu", "tc_no", "calisan_tipi", "sicil_no"}
         for name in sistem_alanlari:
             if name in self.fields:
                 self.fields[name].disabled = True
@@ -125,7 +127,9 @@ class IzinEvrakForm(forms.ModelForm):
             field.widget.attrs.setdefault("class", "form-control")
             if name in {"izin_hakki", "kullanilan_gun", "kalan_izin"}:
                 field.widget.attrs["data-balance"] = name
-        for name in {"izin_turu", "ait_oldugu_yil", "kullanilan_gun", "baslangic_tarihi", "bitis_tarihi"}:
+        self.fields["kalan_izin"].widget.attrs["readonly"] = "readonly"
+        self.fields["kalan_izin"].widget.attrs["tabindex"] = "-1"
+        for name in {"izin_turu", "ait_oldugu_yil", "kullanilan_gun", "baslangic_tarihi", "bitis_tarihi", "goreve_baslama_tarihi"}:
             self.fields[name].required = not taslak
 
     def clean(self):
@@ -138,7 +142,14 @@ class IzinEvrakForm(forms.ModelForm):
             self.add_error("bitis_tarihi", "Biti\u015f tarihi ba\u015flang\u0131\u00e7 tarihinden \u00f6nce olamaz.")
         if gun is not None and gun <= 0:
             self.add_error("kullanilan_gun", "\u0130zin s\u00fcresi 0'dan b\u00fcy\u00fck olmal\u0131d\u0131r.")
+        if hak is not None and hak < 0:
+            self.add_error("izin_hakki", "\u0130zin hakk\u0131 negatif olamaz.")
+        if hak is not None and gun is not None:
+            if gun > hak:
+                self.add_error("kullanilan_gun", "\u0130zin s\u00fcresi izin hakk\u0131ndan fazla olamaz.")
+            cleaned["kalan_izin"] = max(Decimal("0.00"), hak - gun)
         return cleaned
 
 
 IzinTalebiForm = IzinEvrakForm
+

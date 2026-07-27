@@ -7,10 +7,38 @@
     <div class="document-preview">
         <div class="paper-toolbar"><span>&#304;&#231;erik</span><span>Ekler</span><span>&#304;lgili Evrak</span></div>
         <div class="paper">
-            <p class="eyebrow">{% if duzenleme %}Taslak evrak{% else %}Yeni evrak{% endif %}</p>
-            <h2>{% if duzenleme %}Evrak Bilgilerini G&#252;ncelle{% else %}&#304;zin Talep Formu{% endif %}</h2>
-            <p>{% if duzenleme %}{{ form.evrak_no.value }} numaral&#305; evrak a&#231;&#305;ld&#305;. Bilgileriniz korunmu&#351;tur; d&#252;zenleyip taslak olarak b&#305;rakabilir veya onaya sunabilirsiniz.{% else %}{{ personel.ad_soyad }} i&#231;in izin evrak&#305;n&#305; doldurun. &#304;&#351;lemi daha sonra tamamlayacaksan&#305;z taslak olarak kaydedin.{% endif %}</p>
+            {% if duzenleme and talep %}
+            <div class="edit-preview">
+                <div class="edit-preview-head">
+                    <span>{{ talep.get_durum_display }}</span>
+                    <strong>{{ talep.evrak_no }}</strong>
+                </div>
+                <h2>&#304;zin Evrak&#305; &#214;nizlemesi</h2>
+                <table class="mini-izin-preview">
+                    <tr><th>Birimi</th><td colspan="3" class="preview-unit-cell"><strong>{{ personel.gorev_birimi }}</strong>{% if personel.alt_birimi %}<small>{{ personel.alt_birimi }}</small>{% endif %}</td></tr>
+                    <tr><th>Ad&#305; Soyad&#305;</th><td>{{ personel.ad_soyad|ad_soyad_yazimi }}</td><th>Ait Oldu&#287;u Y&#305;l</th><td data-preview="ait_oldugu_yil">{{ talep.ait_oldugu_yil|default:"-" }}</td></tr>
+                    <tr><th>G&#246;revi</th><td>{{ personel|belge_gorevi }}</td><th>&#304;zin Ba&#351;lang&#305;&#231;</th><td data-preview="baslangic_tarihi">{{ talep.baslangic_tarihi|date:"d.m.Y"|default:"-" }}</td></tr>
+                    <tr><th>T.C. Kimlik No</th><td>{{ personel.tc_no|default:"-" }}</td><th>&#304;zin Biti&#351;</th><td data-preview="bitis_tarihi">{{ talep.bitis_tarihi|date:"d.m.Y"|default:"-" }}</td></tr>
+                    <tr><th>Sicil No</th><td>{{ personel.sicil_no|default:"-" }}</td><th>G&#246;reve Ba&#351;lama</th><td data-preview="goreve_baslama_tarihi">{{ goreve_baslama_tarihi|date:"d.m.Y"|default:"-" }}</td></tr>
+                    <tr><th>&#304;zin T&#252;r&#252;</th><td data-preview="izin_turu">{{ talep.izin_turu.ad|default:"-" }}</td><th>Toplam &#304;zin</th><td data-preview="izin_hakki">{{ talep.izin_hakki|izin_gunu }}</td></tr>
+                    <tr><th colspan="2">Talep Etti&#287;i &#304;zin S&#252;resi</th><td colspan="2" data-preview="kullanilan_gun">{{ talep.kullanilan_gun|izin_gunu }}</td></tr>
+                </table>
+                <div class="edit-preview-note">
+                    <strong>A&#231;&#305;klama:</strong>
+                    <span data-preview="aciklama">{% if talep.izin_turu and talep.izin_turu.yillik_izin_mi %}{{ talep.ait_oldugu_yil }} y&#305;l&#305; y&#305;ll&#305;k iznimden {{ talep.kullanilan_gun|izin_gunu }} g&#252;n izin kullanmak istiyorum.{% elif talep.izin_turu %}{{ talep.izin_turu.ad }} kullanmak istiyorum.{% else %}&#304;zin bilgileri tamamland&#305;k&#231;a burada g&#246;r&#252;necek.{% endif %}</span>
+                    <b data-preview="kalan_text">Kalan &#304;zin: {{ talep.kalan_izin|izin_gunu }}</b>
+                </div>
+                <div class="edit-preview-signers">
+                    <div><b>Talep Eden</b><span>{{ personel.ad_soyad|ad_soyad_yazimi }}</span><em>{{ personel|belge_gorevi }}</em></div>
+                    {% for rol,user in imzacilar %}<div><b>{{ rol }}</b><span>{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</span></div>{% empty %}<div><b>&#304;mzac&#305;</b><span>Tan&#305;mlanmam&#305;&#351;</span></div>{% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <p class="eyebrow">Yeni evrak</p>
+            <h2>&#304;zin Talep Formu</h2>
+            <p>{{ personel.ad_soyad }} i&#231;in izin evrak&#305;n&#305; doldurun. &#304;&#351;lemi daha sonra tamamlayacaksan&#305;z taslak olarak kaydedin.</p>
             <div class="paper-line"></div><div class="paper-line short"></div>
+            {% endif %}
         </div>
     </div>
     <aside class="document-panel">
@@ -19,7 +47,7 @@
             <strong>{{ personel.ad_soyad }}</strong><span>{{ personel.tc_no }} &#183; Sicil {{ personel.sicil_no }}</span><em>Toplam kalan izin: {{ toplam_kalan|izin_gunu }} g&#252;n</em>
             <div class="signer-summary"><b>&#304;mzac&#305;lar</b>{% for rol,user in imzacilar %}<span>{{ rol }}: {{ user.get_full_name|default:user.username }}</span>{% empty %}<span>&#304;mzac&#305; tan&#305;mlanmam&#305;&#351;. L&#252;tfen &#304;K birimi ile g&#246;r&#252;&#351;&#252;n&#252;z.</span>{% endfor %}</div>
         </div>
-        <form method="post" class="evrak-form">{% csrf_token %}
+        <form method="post" class="evrak-form" id="evrakForm">{% csrf_token %}
             {% if form.non_field_errors %}<div class="form-errors">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
             {% for field in form %}
                 <div class="doc-field {% if field.field.widget.attrs.data_system %}is-system{% elif field.field.required %}is-required{% else %}is-optional{% endif %} {% if field.name == 'adres' %}wide{% endif %}">
@@ -30,10 +58,167 @@
             <div class="bottom-actions">
                 <a href="{% url 'dashboard' %}">Vazge&#231;</a>
                 <button class="draft-action" type="submit" name="islem" value="taslak_kaydet">Tasla&#287;&#305; Kaydet</button>
-                <button type="submit" name="islem" value="onaya_sun">Onaya Sun</button>
+                <button type="submit" name="islem" value="onaya_sun" data-confirm-kind="approve" data-confirm-title="Onaya Sunulsun mu?" data-confirm-message="&#304;zin evrak&#305; kontrol ve imza s&#252;recine g&#246;nderilecek. Onayl&#305;yor musunuz?">Onaya Sun</button>
+                {% if silinebilir %}<button class="delete-action" type="submit" name="islem" value="sil" formnovalidate data-confirm-kind="delete" data-confirm-title="Evrak Silinsin mi?" data-confirm-message="Bu izin evrak&#305;n&#305;n silinmesini onayl&#305;yor musunuz?">Evrak&#305; Sil</button>{% endif %}
             </div>
         </form>
     </aside>
 </section>
 
+<script>
+(function(){
+  function parseGun(value){
+    let raw = String(value || '').trim().replace(/\s/g, '');
+    if(!raw) return 0;
+    const comma = raw.lastIndexOf(',');
+    const dot = raw.lastIndexOf('.');
+    if(comma > -1 && dot > -1){
+      raw = comma > dot ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(/,/g, '');
+    } else if(comma > -1){
+      raw = raw.replace(',', '.');
+    }
+    const number = Number(raw);
+    return Number.isFinite(number) ? number : 0;
+  }
+  function formatGun(value){
+    const rounded = Math.round(value * 100) / 100;
+    if (Number.isInteger(rounded)) return String(rounded);
+    return String(rounded.toFixed(2)).replace('.', ',');
+  }
+  function dash(value){
+    const clean = String(value || '').trim();
+    return clean || '-';
+  }
+  function formatDate(value){
+    const clean = String(value || '').trim();
+    const match = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(match) return match[3] + '.' + match[2] + '.' + match[1];
+    return dash(clean);
+  }
+  function selectedText(field){
+    if(!field) return '';
+    if(field.tagName === 'SELECT'){
+      const option = field.options[field.selectedIndex];
+      return option && option.value ? option.textContent.trim() : '';
+    }
+    return field.value || '';
+  }
+
+  const form = document.getElementById('evrakForm');
+  const hak = document.querySelector('[data-balance="izin_hakki"]');
+  const kullanilan = document.querySelector('[data-balance="kullanilan_gun"]');
+  const kalan = document.querySelector('[data-balance="kalan_izin"]');
+  const field = function(name){ return form ? form.querySelector('[name="' + name + '"]') : null; };
+  const preview = function(name){ return document.querySelector('[data-preview="' + name + '"]'); };
+  const previewFields = {
+    izin_turu: field('izin_turu'),
+    ait_oldugu_yil: field('ait_oldugu_yil'),
+    izin_hakki: field('izin_hakki'),
+    kullanilan_gun: field('kullanilan_gun'),
+    kalan_izin: field('kalan_izin'),
+    baslangic_tarihi: field('baslangic_tarihi'),
+    bitis_tarihi: field('bitis_tarihi'),
+    goreve_baslama_tarihi: field('goreve_baslama_tarihi')
+  };
+
+  function updatePreview(){
+    const izinText = selectedText(previewFields.izin_turu);
+    const yil = dash(previewFields.ait_oldugu_yil && previewFields.ait_oldugu_yil.value);
+    const gun = dash(previewFields.kullanilan_gun && previewFields.kullanilan_gun.value);
+    const hakValue = dash(previewFields.izin_hakki && previewFields.izin_hakki.value);
+    const kalanValue = dash((kalan && kalan.value) || (previewFields.kalan_izin && previewFields.kalan_izin.value));
+
+    const targets = {
+      ait_oldugu_yil: yil,
+      baslangic_tarihi: formatDate(previewFields.baslangic_tarihi && previewFields.baslangic_tarihi.value),
+      bitis_tarihi: formatDate(previewFields.bitis_tarihi && previewFields.bitis_tarihi.value),
+      goreve_baslama_tarihi: formatDate(previewFields.goreve_baslama_tarihi && previewFields.goreve_baslama_tarihi.value),
+      izin_turu: dash(izinText),
+      izin_hakki: hakValue,
+      kullanilan_gun: gun
+    };
+    Object.keys(targets).forEach(function(key){
+      const node = preview(key);
+      if(node) node.textContent = targets[key];
+    });
+
+    const kalanNode = preview('kalan_text');
+    if(kalanNode) kalanNode.textContent = 'Kalan \u0130zin: ' + kalanValue;
+
+    let aciklama = '\u0130zin bilgileri tamamland\u0131k\u00e7a burada g\u00f6r\u00fcnecek.';
+    if(izinText && gun !== '-'){
+      const izinLower = izinText.toLocaleLowerCase('tr-TR');
+      if(izinLower.includes('y\u0131ll\u0131k')){
+        if(yil !== '-'){
+          aciklama = yil + ' y\u0131l\u0131 y\u0131ll\u0131k iznimden ' + gun + ' g\u00fcn izin kullanmak istiyorum.';
+        } else {
+          aciklama = 'Y\u0131ll\u0131k iznimden ' + gun + ' g\u00fcn izin kullanmak istiyorum.';
+        }
+      } else {
+        aciklama = izinText + ' kullanmak istiyorum.';
+      }
+    }
+    const aciklamaNode = preview('aciklama');
+    if(aciklamaNode) aciklamaNode.textContent = aciklama;
+  }
+
+  if(hak && kullanilan && kalan){
+    kalan.readOnly = true;
+    kalan.setAttribute('tabindex', '-1');
+    function updateKalan(){
+      const sonuc = parseGun(hak.value) - parseGun(kullanilan.value);
+      kalan.value = formatGun(Math.max(0, sonuc));
+      kullanilan.classList.toggle('balance-overflow', sonuc < 0);
+      updatePreview();
+    }
+    hak.addEventListener('input', updateKalan);
+    kullanilan.addEventListener('input', updateKalan);
+    updateKalan();
+  }
+  Object.keys(previewFields).forEach(function(key){
+    const item = previewFields[key];
+    if(!item) return;
+    item.addEventListener('input', updatePreview);
+    item.addEventListener('change', updatePreview);
+  });
+  updatePreview();
+
+  if(!form) return;
+  form.addEventListener('keydown', function(event){
+    if(event.key === 'Enter' && event.target && !['TEXTAREA','BUTTON'].includes(event.target.tagName)){
+      event.preventDefault();
+    }
+  });
+  let pendingButton = null;
+  const modal = document.createElement('div');
+  modal.className = 'confirm-modal-backdrop';
+  modal.innerHTML = '<div class="confirm-modal" role="dialog" aria-modal="true"><div class="confirm-icon">!</div><h2></h2><p></p><div class="confirm-actions"><button type="button" class="confirm-cancel">Vazge\u00e7</button><button type="button" class="confirm-ok">Onayla</button></div></div>';
+  document.body.appendChild(modal);
+  const box = modal.querySelector('.confirm-modal');
+  const title = modal.querySelector('h2');
+  const message = modal.querySelector('p');
+  const cancel = modal.querySelector('.confirm-cancel');
+  const ok = modal.querySelector('.confirm-ok');
+  function closeModal(){ modal.classList.remove('open'); pendingButton = null; }
+  cancel.addEventListener('click', closeModal);
+  modal.addEventListener('click', function(event){ if(event.target === modal) closeModal(); });
+  ok.addEventListener('click', function(){
+    if(!pendingButton) return;
+    pendingButton.dataset.confirmed = '1';
+    pendingButton.click();
+  });
+  form.addEventListener('submit', function(event){
+    const submitter = event.submitter;
+    if(!submitter || !submitter.dataset.confirmKind || submitter.dataset.confirmed === '1') return;
+    event.preventDefault();
+    pendingButton = submitter;
+    box.classList.toggle('danger', submitter.dataset.confirmKind === 'delete');
+    box.classList.toggle('approve', submitter.dataset.confirmKind === 'approve');
+    title.textContent = submitter.dataset.confirmTitle || '\u0130\u015flem onaylans\u0131n m\u0131?';
+    message.textContent = submitter.dataset.confirmMessage || 'Bu i\u015flemi yapmak istedi\u011finize emin misiniz?';
+    ok.textContent = submitter.dataset.confirmKind === 'delete' ? 'Evet, Sil' : 'Evet, Onaya Sun';
+    modal.classList.add('open');
+  });
+})();
+</script>
 {% endblock %}

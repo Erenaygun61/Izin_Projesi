@@ -2,13 +2,13 @@
 {% block title %}&#304;zin &#304;&#351;lemleri{% endblock %}
 {% block page_title %}&#304;zin &#304;&#351;lemleri{% endblock %}
 {% block content %}
-<section class="section-head"><p class="eyebrow">Personel</p><h2>&#304;zin evrak&#305; t&#252;r&#252;n&#252; se&#231;</h2><p>&#199;al&#305;&#351;an tipine g&#246;re evrak ekran&#305;na ilerle. &#350;u an memur &#246;zl&#252;k ba&#287;lant&#305;s&#305; aktif; i&#351;&#231;i ve &#351;irket se&#231;enekleri tasar&#305;mda haz&#305;r bekliyor.</p></section>
+<section class="section-head"><p class="eyebrow">Personel</p><h2>&#304;zin evrak&#305; t&#252;r&#252;n&#252; se&#231;</h2><p>&#199;al&#305;&#351;an tipine g&#246;re evrak ekran&#305;na ilerle. Memur, i&#351;&#231;i ve &#351;irket personeli kendi kart&#305;ndan sorgulan&#305;r; farkl&#305; evrak t&#252;r&#252;nden izin olu&#351;turulamaz.</p></section>
 <div class="evrak-grid">
     {% for key, item in evrak_tipleri.items %}
         <a class="evrak-card {% if not item.aktif %}disabled{% endif %}" href="{% url 'tc_sorgula' key %}">
             <span class="plus">+</span>
             <h3>{{ item.baslik }}</h3>
-            <p>{% if item.aktif %}T.C. Kimlik No ile &#246;zl&#252;kten sorgula ve izin evrak&#305;n&#305; haz&#305;rla.{% else %}Personel kayna&#287;&#305; ba&#287;lan&#305;nca aktif olacak.{% endif %}</p>
+            <p>{% if item.aktif %}T.C. Kimlik No ile kendi {{ item.calisan_tipi|lower }} kayd&#305;n&#305; sorgula ve izin evrak&#305;n&#305; haz&#305;rla.{% else %}Personel kayna&#287;&#305; ba&#287;lan&#305;nca aktif olacak.{% endif %}</p>
         </a>
     {% endfor %}
 </div>
