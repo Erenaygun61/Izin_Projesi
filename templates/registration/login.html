@@ -48,7 +48,7 @@
                     </div>
                 </aside>
 
-                <form method="post" class="credential-panel">
+                <form method="post" class="credential-panel" id="loginForm">
                     {% csrf_token %}
                     <div class="portal-kicker">
                         <span class="network-icon" aria-hidden="true">
@@ -118,5 +118,14 @@
         <span>TRABZON &#304;&#199;MESUYU VE KANAL&#304;ZASYON &#304;DARES&#304; GENEL M&#220;D&#220;RL&#220;&#286;&#220;</span>
         <strong>&#304;Z&#304;N S&#304;STEM&#304;</strong>
     </footer>
+    <script>
+    (function(){
+      var form = document.getElementById('loginForm');
+      if(!form || !window.sessionStorage) return;
+      form.addEventListener('submit', function(){
+        sessionStorage.setItem('izinPortalLoginPending', '1');
+      });
+    })();
+    </script>
 </body>
 </html>

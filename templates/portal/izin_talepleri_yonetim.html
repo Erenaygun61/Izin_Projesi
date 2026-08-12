@@ -36,14 +36,13 @@
             </td>
             <td class="flow-actions">
                 {% if row.talep.durum != "ONAYLANDI" %}
-                    {% if row.can_geri_cek %}<button form="flow{{ row.talep.id }}" name="islem" value="geri_cek" class="outline-action">&#8634; Geri &#199;ek</button>{% endif %}
-                    {% if row.can_iade %}<button form="flow{{ row.talep.id }}" name="islem" value="sahibine_iade" class="danger-action">Sahibine &#304;ade</button>{% endif %}
+                    {# Evrak geri çekme ve sahibine iade, hedef kullanıcı seçimi/teyidi için İzin Ara ekranındaki satır menüsünden yapılır. #}
                 {% else %}
                     <span class="locked-flow">&#128274; Onayl&#305;</span>
                 {% endif %}
                 {% if row.can_delete %}<button form="flow{{ row.talep.id }}" name="islem" value="izin_sil" class="danger-action delete-management-btn" data-evrak-no="{{ row.talep.evrak_no }}" data-approved="{% if row.talep.durum == 'ONAYLANDI' %}1{% else %}0{% endif %}">Sil</button>{% endif %}
                 <a class="outline-action" href="{% url 'evrak_paraf' row.talep.id %}">A&#231;</a>
-                <a class="preview-action" href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#214;nizleme</a>
+                <a class="preview-action" href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="opener">&#214;nizleme</a>
             </td>
         </tr>
     {% empty %}

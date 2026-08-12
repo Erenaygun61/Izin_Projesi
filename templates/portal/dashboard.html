@@ -5,6 +5,17 @@
 {% block content %}
 <section class="welcome-card">
     <div><p class="eyebrow">G&#246;revlerim</p>{% if personel %}<h2>{{ personel.ad_soyad }}</h2><p>{{ personel.sicil_no }} sicil &#183; {{ personel.gorev_birimi }}{% if personel.gorevi %} &#183; {{ personel.gorevi }}{% endif %}</p>{% else %}<h2>Personel kayd&#305; e&#351;le&#351;medi</h2><p>Kullan&#305;c&#305; ad&#305;n&#305;z personel kayd&#305;yla e&#351;le&#351;medi.</p>{% endif %}</div>
+    <aside class="portal-time-card" aria-label="Saat ve tarih">
+        <div class="time-orbit" aria-hidden="true">
+            <span></span>
+            <b id="timeSeconds">00</b>
+        </div>
+        <div class="time-info">
+            <small>Bug&#252;n</small>
+            <strong id="portalClock">--:--:--</strong>
+            <em id="portalDate">--.--.----</em>
+        </div>
+    </aside>
     <a class="hero-action" href="{% url 'izin_menu' %}">&#304;zin &#304;&#351;lemlerine Git</a>
 </section>
 <section class="panel tasks-panel">
@@ -21,17 +32,17 @@
                     <div><strong>{% if talep.durum == "TASLAK" %}Evrak Bilgilerini G&#252;ncelle{% elif talep.durum == "IADE_EDILDI" %}&#304;ade edilen evrak bilgilerini g&#252;ncelle{% elif talep.durum == "REDDEDILDI" and talep.kontrol_eden_id == request.user.id and talep.kullanici_id != request.user.id %}{{ talep.kullanici.get_full_name|default:talep.kullanici.username }} izin evrak&#305; reddedildi. Dosyas&#305;na i&#351;leyiniz.{% elif talep.durum == "REDDEDILDI" %}&#304;zin evrak&#305;n&#305;z reddedildi.{% elif talep.durum == "PARAF_BEKLIYOR" %}Kontrol&#252;n&#252;z i&#231;in izin evrak&#305; gelmi&#351;tir.{% else %}Paraf/imzan&#305;z i&#231;in izin evrak&#305; gelmi&#351;tir.{% endif %} (&#304;zin iste&#287;i {{ talep.evrak_no }})</strong><em>{{ talep.kullanici.get_full_name|default:talep.kullanici.username }} / {% if talep.izin_turu %}{{ talep.izin_turu.ad }}{% else %}&#304;zin t&#252;r&#252; se&#231;ilmedi{% endif %}</em></div>
                     <time>{{ talep.olusturma_zamani|date:"d M H:i" }}</time>
                 </a>
-                <a class="task-preview" href="{% url 'evrak_onizleme' talep.id %}" target="_blank" rel="noopener">&#128065; &#214;nizleme</a>
+                <a class="task-preview" href="{% url 'evrak_paraf' talep.id %}">&#128065; &#214;nizleme</a>
             </div>
         {% empty %}<div class="empty-task">Bekleyen g&#246;reviniz yok.</div>{% endfor %}
         {% for talep in imzalananlar %}
             <div class="task-item task-onaylandi">
-                <a class="task-main" href="{% url 'evrak_onizleme' talep.id %}" target="_blank" rel="noopener">
+                <a class="task-main" href="{% url 'evrak_paraf' talep.id %}">
                     <span class="task-icon">&#10003;</span>
                     <div><strong>{% if talep.kullanici_id == request.user.id %}&#304;zin evrak&#305;n&#305;z imza s&#252;recinden &#231;&#305;kt&#305; ve onayland&#305;.{% else %}{{ talep.kullanici.get_full_name|default:talep.kullanici.username }} izin evrak&#305; imza s&#252;recinden &#231;&#305;kt&#305; ve onayland&#305;. Dosyas&#305;na i&#351;leyiniz.{% endif %} ({{ talep.evrak_no }})</strong><em>{% if talep.izin_turu %}{{ talep.izin_turu.ad }}{% endif %}</em></div>
                     <time>{{ talep.guncelleme_zamani|date:"d M H:i" }}</time>
                 </a>
-                <a class="task-preview" href="{% url 'evrak_onizleme' talep.id %}" target="_blank" rel="noopener">&#128065; &#214;nizleme</a>
+                <a class="task-preview" href="{% url 'evrak_paraf' talep.id %}">&#128065; &#214;nizleme</a>
                 <form method="post" action="{% url 'izin_bildirimini_kapat' talep.id %}">{% csrf_token %}<button class="task-close" type="submit">&#10005; Bildirimi Kapat</button></form>
             </div>
         {% endfor %}
@@ -43,5 +54,24 @@
     <article class="panel"><div class="panel-title"><h2>Son Kulland&#305;&#287;&#305;m &#304;zinler</h2></div><table><thead><tr><th>T&#252;r</th><th>Tarih</th><th>G&#252;n</th></tr></thead><tbody>{% for izin in son_kullanimlar %}<tr><td>{{ izin.tur }}</td><td>{{ izin.baslangic|date:"d.m.Y" }} - {{ izin.bitis|date:"d.m.Y" }}</td><td>{{ izin.gun|izin_gunu }}</td></tr>{% empty %}<tr><td colspan="3">Kay&#305;t yok.</td></tr>{% endfor %}</tbody></table></article>
 </section>
 {% endif %}
-<script>document.getElementById('taskFilter')?.addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('#taskList .task-item').forEach(x=>x.style.display=x.textContent.toLowerCase().includes(q)?'grid':'none')});</script>
+<script>
+document.getElementById('taskFilter')?.addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('#taskList .task-item').forEach(x=>x.style.display=x.textContent.toLowerCase().includes(q)?'grid':'none')});
+(function(){
+    const clock = document.getElementById('portalClock');
+    const dateText = document.getElementById('portalDate');
+    const seconds = document.getElementById('timeSeconds');
+    if(!clock || !dateText || !seconds) return;
+    const pad = value => String(value).padStart(2,'0');
+    const months = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+    function tick(){
+        const now = new Date();
+        clock.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+        dateText.textContent = pad(now.getDate()) + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
+        seconds.textContent = pad(now.getSeconds());
+        seconds.parentElement.style.setProperty('--second-angle', (now.getSeconds() * 6) + 'deg');
+    }
+    tick();
+    window.setInterval(tick, 1000);
+})();
+</script>
 {% endblock %}

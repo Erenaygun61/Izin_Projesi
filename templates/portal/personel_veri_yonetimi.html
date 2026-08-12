@@ -9,7 +9,6 @@
     <div class="source-stats">
         <span><b>{{ genel_toplam_kaynak }}</b> özlük personeli</span>
         <span><b>{{ genel_toplam_portal }}</b> portal kartı</span>
-        <span>İşçi/şirket için başlangıç 2026 izin hakkı: <b>10 gün</b></span>
     </div>
 </section>
 
@@ -53,7 +52,13 @@
 <section class="panel local-personnel-toolbar">
     <form method="get" class="local-search">
         <input type="hidden" name="tip" value="{{ tip }}">
-        <label>{{ tip_etiket }} Personel Ara<input name="q" value="{{ q }}" placeholder="Sicil, ad soyad, unvan veya birim yaz"></label>
+        <input type="hidden" name="personel_source" class="local-picked-person" value="{{ secili_source }}">
+        <label>Personel Ara
+            <span class="local-person-search-line">
+                <input name="q" value="{{ q }}" placeholder="Sicil, ad soyad, kullanıcı adı, unvan veya birim yaz">
+                <button type="button" class="search-btn local-person-picker-btn" title="Personel seç">&#128269;</button>
+            </span>
+        </label>
         <button class="search-btn-wide" type="submit">Ara</button>
         <a class="clear-search-action" href="{% url 'personel_veri_yonetimi' %}?tip={{ tip }}">Temizle</a>
     </form>
@@ -94,26 +99,109 @@
             <tbody>
             {% for satir in satirlar %}
                 <tr>
-                    <td><input class="person-check" type="checkbox" name="source_ids" value="{{ satir.kaynak.id }}"></td>
-                    <td><span class="local-pill">{{ tip_etiket }}</span></td>
+                    <td><input class="person-check" type="checkbox" name="source_ids" value="{{ satir.tip }}:{{ satir.kaynak.id }}"></td>
+                    <td><span class="local-pill">{{ satir.tip_etiket }}</span></td>
                     <td>{{ satir.sicil_no }}</td>
                     <td><strong>{{ satir.ad_soyad }}</strong></td>
                     <td>{{ satir.unvan|default:"-" }}</td>
                     <td>{{ satir.birim|default:"-" }}</td>
                     <td>{% if satir.portal %}<span class="local-pill">Portal kartı var</span>{% else %}<span class="source-pill">Henüz aktarılmadı</span>{% endif %}</td>
                     <td>{% if satir.portal %}{{ satir.portal.ozluk_senkron_zamani|date:"d.m.Y H:i" }}{% else %}-{% endif %}</td>
-                    <td><a class="row-edit" href="?tip={{ tip }}&duzenle={{ satir.kaynak.id }}">Düzenle</a></td>
+                    <td><a class="row-edit" href="?tip={{ satir.tip }}&duzenle={{ satir.kaynak.id }}">Düzenle</a></td>
                 </tr>
             {% empty %}
-                <tr><td colspan="9">Aramanıza uygun {{ tip_etiket|lower }} personeli bulunamadı.</td></tr>
+                <tr><td colspan="9">Aramanıza uygun personel bulunamadı.</td></tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
 </form>
 <script>
-document.querySelector('.select-all')?.addEventListener('change', function(){
-    document.querySelectorAll('.person-check').forEach(function(item){ item.checked = this.checked; }.bind(this));
-});
+(() => {
+  document.querySelector('.select-all')?.addEventListener('change', function(){
+      document.querySelectorAll('.person-check').forEach(function(item){ item.checked = this.checked; }.bind(this));
+  });
+
+  const form = document.querySelector('.local-search');
+  if(!form) return;
+  const qInput = form.querySelector('input[name="q"]');
+  const tipInput = form.querySelector('input[name="tip"]');
+  const pickedInput = form.querySelector('.local-picked-person');
+  const pickerButton = form.querySelector('.local-person-picker-btn');
+  let page = 1;
+  let timer = null;
+
+  const escapeHtml = (value) => String(value || '').replace(/[&<>"]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const modal = document.createElement('div');
+  modal.className = 'picker-modal-backdrop local-person-modal';
+  modal.innerHTML = '<div class="picker-modal" role="dialog" aria-modal="true"><div class="picker-modal-head"><div><strong>Personel Seç</strong><span>Memur, işçi ve şirket personeli içinde arayabilirsiniz.</span></div><button type="button" class="picker-modal-close">×</button></div><div class="picker-modal-search"><input type="text" placeholder="Ad soyad, kullanıcı adı veya sicil yaz"><button type="button">Ara</button></div><div class="picker-modal-results"></div><div class="picker-modal-footer"><span class="picker-page-info">10 kayıt listelenir.</span><div><button type="button" class="picker-prev">Önceki</button><button type="button" class="picker-next">Sonraki</button></div></div></div>';
+  document.body.appendChild(modal);
+  const modalInput = modal.querySelector('.picker-modal-search input');
+  const modalSearch = modal.querySelector('.picker-modal-search button');
+  const modalResults = modal.querySelector('.picker-modal-results');
+  const modalInfo = modal.querySelector('.picker-page-info');
+  const prev = modal.querySelector('.picker-prev');
+  const next = modal.querySelector('.picker-next');
+
+  function closeModal(){
+    modal.classList.remove('open');
+    modalResults.innerHTML = '';
+  }
+  function updatePager(pagination){
+    const info = pagination || {page: 1, pages: 1, total: 0, has_previous: false, has_next: false};
+    modalInfo.textContent = info.total ? `${info.total} kayıt - ${info.page}/${info.pages}. sayfa` : 'Kayıt yok';
+    prev.disabled = !info.has_previous;
+    next.disabled = !info.has_next;
+    prev.dataset.page = info.has_previous ? String(info.page - 1) : String(info.page || 1);
+    next.dataset.page = info.has_next ? String(info.page + 1) : String(info.page || 1);
+  }
+  function optionHtml(item){
+    return `<button type="button" class="picker-option local-person-option" data-id="${escapeHtml(item.id)}" data-tip="${escapeHtml(item.tip)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.tip_etiket || '')}${item.username ? ' · ' + escapeHtml(item.username) : ''}</small><small>${escapeHtml(item.birim || '')}</small></button>`;
+  }
+  async function search(pageNumber){
+    page = pageNumber || page || 1;
+    modalResults.innerHTML = '<div class="picker-loading">Aranıyor...</div>';
+    updatePager({page, pages: 1, total: 0, has_previous: false, has_next: false});
+    const params = new URLSearchParams({q: modalInput.value.trim(), page});
+    const response = await fetch("{% url 'personel_veri_personel_ara' %}?" + params.toString());
+    if(!response.ok){
+      modalResults.innerHTML = '<div class="no-result">Arama yapılamadı.</div>';
+      return;
+    }
+    const data = await response.json();
+    updatePager(data.pagination);
+    const results = data.results || [];
+    modalResults.innerHTML = results.length ? results.map(optionHtml).join('') : '<div class="no-result">Sonuç bulunamadı.</div>';
+    modalResults.querySelectorAll('.local-person-option').forEach(button => {
+      button.addEventListener('click', () => {
+        pickedInput.value = button.dataset.id || '';
+        tipInput.value = button.dataset.tip || tipInput.value;
+        qInput.value = button.dataset.label || '';
+        closeModal();
+        form.submit();
+      });
+    });
+  }
+  function openModal(){
+    page = 1;
+    modalInput.value = qInput.value || '';
+    modal.classList.add('open');
+    modalInput.focus();
+    search(1);
+  }
+  pickerButton?.addEventListener('click', openModal);
+  modal.querySelector('.picker-modal-close').addEventListener('click', closeModal);
+  modal.addEventListener('click', (event) => { if(event.target === modal) closeModal(); });
+  modalSearch.addEventListener('click', () => search(1));
+  prev.addEventListener('click', () => search(Number(prev.dataset.page || '1')));
+  next.addEventListener('click', () => search(Number(next.dataset.page || '1')));
+  modalInput.addEventListener('keydown', (event) => { if(event.key === 'Enter'){ event.preventDefault(); search(1); } });
+  modalInput.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => search(1), 250);
+  });
+  document.addEventListener('keydown', (event) => { if(event.key === 'Escape' && modal.classList.contains('open')) closeModal(); });
+  qInput.addEventListener('input', () => { pickedInput.value = ''; });
+})();
 </script>
 {% endblock %}

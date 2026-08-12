@@ -2,19 +2,60 @@
 {% block title %}Evrak Arama{% endblock %}
 {% block page_title %}Evrak Arama{% endblock %}
 {% block content %}
+<style>
+  .row-menu-pop .row-flow-action { width:100%; border:0; border-radius:8px; padding:8px 10px; margin:4px 0; text-align:left; font:inherit; font-weight:700; color:#07546b; background:#eaf8f7; cursor:pointer; }
+  .row-menu-pop .row-flow-action:hover { background:#c9f1e9; }
+  .row-menu-pop .row-flow-action.row-flow-danger { color:#a62626; background:#ffe8e8; }
+  .row-menu.open { z-index:12000; }
+  .row-menu-pop { z-index:12000; }
+  .row-menu-pop.is-floating { position:fixed; left:auto; top:auto; }
+  .flow-confirm-backdrop[hidden] { display:none; }
+  .flow-confirm-backdrop { position:fixed; inset:0; z-index:11000; display:grid; place-items:center; padding:20px; background:rgba(10,38,56,.52); backdrop-filter:blur(3px); }
+  .flow-confirm-card { position:relative; width:min(460px,100%); padding:28px; border-radius:20px; background:#fff; box-shadow:0 24px 70px rgba(0,0,0,.32); color:#123b59; }
+  .flow-confirm-close { position:absolute; top:12px; right:14px; width:30px; height:30px; border:0; border-radius:50%; background:#eef5f8; color:#47637a; font-size:22px; cursor:pointer; }
+  .flow-confirm-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:14px; margin:0 auto 12px; background:#d9f7ed; color:#078a66; font-size:28px; }
+  .flow-confirm-card h3 { margin:0 0 8px; text-align:center; font-size:21px; }
+  .flow-confirm-card p { margin:0 0 18px; text-align:center; color:#5c748a; line-height:1.5; }
+  .flow-target-wrap { display:grid; gap:7px; margin:12px 0 18px; font-weight:700; }
+  .flow-target-wrap select { width:100%; padding:11px 12px; border:1px solid #b9d7e4; border-radius:10px; color:#183d58; background:#f8fcfe; }
+  .flow-confirm-actions { display:flex; justify-content:center; gap:10px; }
+  .flow-confirm-actions button { min-width:130px; padding:11px 15px; border:0; border-radius:10px; font-weight:800; cursor:pointer; }
+  .flow-cancel { background:#edf3f8; color:#2e5470; }
+  .flow-submit { background:#11aa88; color:#fff; }
+  .flow-submit.danger { background:#ef5350; }
+</style>
 <section class="search-filter-panel advanced-search-panel">
-    <div class="filter-head"><h2>&#128269; Evrak Filtrele</h2><span>Genel aramada her alanda e&#351;le&#351;me aran&#305;r; personeli ayr&#305; b&#252;y&#252;te&#231;ten se&#231;ebilirsiniz.</span></div>
-    <form method="get" class="advanced-search-grid">
+    <form method="get" class="advanced-search-form">
+        <div class="filter-head">
+            <h2>&#128269; Evrak Filtrele</h2>
+            <div class="date-range-picker">
+                <label>Tarih Kapsam&#305;</label>
+                <input type="hidden" name="tarih_araligi" id="tarihAraligi" value="{{ tarih_araligi }}">
+                <div class="date-range-options">
+                    <button type="button" data-range="7" class="{% if not tarih_baslangic and not tarih_bitis and tarih_araligi == '7' %}active{% endif %}">7 G&#252;n</button>
+                    <button type="button" data-range="30" class="{% if not tarih_baslangic and not tarih_bitis and tarih_araligi == '30' %}active{% endif %}">1 Ay</button>
+                    <button type="button" data-range="90" class="{% if not tarih_baslangic and not tarih_bitis and tarih_araligi == '90' %}active{% endif %}">3 Ay</button>
+                    <button type="button" data-range="180" class="{% if not tarih_baslangic and not tarih_bitis and tarih_araligi == '180' %}active{% endif %}">6 Ay</button>
+                    <button type="button" data-range="365" class="{% if not tarih_baslangic and not tarih_bitis and tarih_araligi == '365' %}active{% endif %}">1 Y&#305;l</button>
+                    <button type="button" data-range="all" class="{% if not tarih_baslangic and not tarih_bitis and tarih_araligi == 'all' %}active{% endif %}">T&#252;m&#252;</button>
+                </div>
+            </div>
+        </div>
+        <div class="advanced-search-grid">
         <label>Genel Arama<input type="text" name="q" value="{{ q }}" placeholder="Evrak, ki&#351;i, birim, imzalayan, izin t&#252;r&#252; veya a&#231;&#305;klama ara"></label>
         <label>Evrak No / Say&#305;<input type="text" name="evrak_no" value="{{ evrak_no }}" placeholder="&#214;rn: 2026-12"></label>
         <label>Evrak Tarihi Ba&#351;lang&#305;&#231;<input type="date" name="tarih_baslangic" value="{{ tarih_baslangic }}"></label>
         <label>Evrak Tarihi Biti&#351;<input type="date" name="tarih_bitis" value="{{ tarih_bitis }}"></label>
         {% if genis_arama_yetkisi %}
         <div class="filter-picker" data-kind="birim">
-            <label>Birim</label>
+            <label>Daire Ba&#351;kanl&#305;&#287;&#305; / Ana Birim</label>
             <input type="hidden" name="birim" value="{{ birim }}">
+            <div class="picker-line"><input type="text" name="birim_metin" value="{% if birim %}{{ birim }}{% else %}{{ birim_metin }}{% endif %}" placeholder="Ana birim se&#231;in"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+        </div>
+        <div class="filter-picker" data-kind="alt-birim">
+            <label>&#350;ube M&#252;d&#252;rl&#252;&#287;&#252; / Alt Birim</label>
             <input type="hidden" name="alt_birim" value="{{ alt_birim }}">
-            <div class="picker-line"><input type="text" name="birim_metin" value="{% if birim %}{{ birim }}{% if alt_birim %} / {{ alt_birim }}{% endif %}{% else %}{{ birim_metin }}{% endif %}" placeholder="Birim ad&#305; yaz veya b&#252;y&#252;te&#231;ten se&#231;"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
+            <div class="picker-line"><input type="text" name="alt_birim_metin" value="{{ alt_birim }}" placeholder="&#214;nce ana birim se&#231;in"><button type="button" class="search-btn">&#128269;</button><button type="button" class="clear-btn">Sil</button></div>
         </div>
         <div class="filter-picker" data-kind="personel">
             <label>Personel</label>
@@ -28,10 +69,10 @@
         </div>
         <label>Durum<select name="durum"><option value="">T&#252;m&#252;</option>{% for key,label in durumlar %}<option value="{{ key }}" {% if durum == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
         {% else %}
-        <div class="own-search-note">Yetkiniz olmad&#305;&#287;&#305; i&#231;in yaln&#305;zca kendi izin evraklar&#305;n&#305;z listelenir.</div>
         <label>Durum<select name="durum"><option value="">T&#252;m&#252;</option>{% for key,label in durumlar %}<option value="{{ key }}" {% if durum == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
         {% endif %}
         <div class="search-actions"><a href="{% url 'izin_ara' %}" class="clear-search-action">Temizle</a><button class="green-action">Ara</button></div>
+        </div>
     </form>
 </section>
 <section class="evrak-table-wrap">
@@ -55,7 +96,9 @@
                     <button type="button" class="row-menu-trigger" title="&#304;&#351;lemler">&#9776;</button>
                     <div class="row-menu-pop">
                         <a href="{% url 'evrak_paraf' row.talep.id %}">Evrak&#305; a&#231;</a>
-                        <a href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#214;nizle</a>
+                        <a href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="opener">&#214;nizle</a>
+                        {% if row.can_sahibine_iade %}<button type="button" class="row-flow-action row-flow-danger js-sahibine-iade" data-talep-id="{{ row.talep.id }}" data-evrak-no="{{ row.talep.evrak_no }}">&#8617; Sahibine iade et</button>{% endif %}
+                        {% if row.can_geri_cek %}<select id="geri-cek-hedefleri-{{ row.talep.id }}" hidden>{% for hedef in row.geri_cekme_hedefleri %}<option value="{{ hedef.kullanici.id }}">{{ hedef.rol }} &mdash; {{ hedef.ad_soyad }}</option>{% endfor %}</select><button type="button" class="row-flow-action js-geri-cek" data-talep-id="{{ row.talep.id }}" data-evrak-no="{{ row.talep.evrak_no }}" data-target-source="geri-cek-hedefleri-{{ row.talep.id }}">&#8617; Geri &#231;ek</button>{% endif %}
                         {% if row.can_delete %}<form method="post" class="delete-leave-form" data-evrak-no="{{ row.talep.evrak_no }}" data-approved="{% if row.talep.durum == 'ONAYLANDI' %}1{% else %}0{% endif %}">{% csrf_token %}<input type="hidden" name="islem" value="izin_sil"><input type="hidden" name="talep_id" value="{{ row.talep.id }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="yonetici_sifre" value=""><button type="submit">Sil</button></form>{% endif %}
                     </div>
                 </div>
@@ -70,7 +113,7 @@
             <td>{% for user in row.imzalayanlar %}<span class="signer-chip">{{ user.get_full_name|default:user.username }}</span>{% empty %}-{% endfor %}</td>
             <td><span class="status status-{{ row.talep.durum|lower }}">{{ row.talep.get_durum_display }}</span></td>
             <td class="holder-cell">{% if row.kimde %}{{ row.kimde.get_full_name|default:row.kimde.username }}{% else %}-{% endif %}</td>
-            <td class="detail-actions"><a class="preview-action" href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="noopener">&#128065; &#214;nizleme</a><a href="{% url 'evrak_paraf' row.talep.id %}">&#128269;</a></td>
+            <td class="detail-actions"><a class="preview-action" href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="opener">&#128065; &#214;nizleme</a><a href="{% url 'evrak_paraf' row.talep.id %}">&#128269;</a></td>
         </tr>{% empty %}<tr><td colspan="12">Kay&#305;t bulunamad&#305;.</td></tr>{% endfor %}
     </tbody></table>
     <div class="table-pager">
@@ -89,6 +132,19 @@
         </label>
     </div>
 </section>
+<div class="flow-confirm-backdrop" id="flowConfirmModal" hidden>
+  <form method="post" class="flow-confirm-card" id="flowConfirmForm">
+    {% csrf_token %}
+    <input type="hidden" name="islem" id="flowAction">
+    <input type="hidden" name="talep_id" id="flowTalepId">
+    <button type="button" class="flow-confirm-close" data-flow-close aria-label="Kapat">&times;</button>
+    <div class="flow-confirm-icon" id="flowConfirmIcon">&#8617;</div>
+    <h3 id="flowConfirmTitle"></h3>
+    <p id="flowConfirmText"></p>
+    <label class="flow-target-wrap" id="flowTargetWrap" hidden><span>Geri g&#246;nderilecek kullan&#305;c&#305;</span><select name="hedef_kullanici_id" id="flowTarget"></select></label>
+    <div class="flow-confirm-actions"><button type="button" class="flow-cancel" data-flow-close>Vazge&#231;</button><button type="submit" class="flow-submit" id="flowConfirmSubmit">Onayla</button></div>
+  </form>
+</div>
 <script>
 (function(){
   function escapeHtml(value){
@@ -102,17 +158,22 @@
   }
   const modal = document.createElement('div');
   modal.className = 'picker-modal-backdrop';
-  modal.innerHTML = '<div class="picker-modal" role="dialog" aria-modal="true"><div class="picker-modal-head"><div><strong></strong><span>Yazarak arayabilir veya listeden se\u00e7ebilirsiniz.</span></div><button type="button" class="picker-modal-close">\u00d7</button></div><div class="picker-modal-search"><input type="text" placeholder="Arama metni yaz"><button type="button">Ara</button></div><div class="picker-modal-results"></div></div>';
+  modal.innerHTML = '<div class="picker-modal evrak-picker-modal" role="dialog" aria-modal="true"><div class="picker-modal-head"><div><strong></strong><span>Listeden sat\u0131r se\u00e7erek devam edin.</span></div><button type="button" class="picker-modal-close">\u00d7</button></div><div class="picker-modal-search"><input type="text" placeholder="Sicil, ad soyad, kullan\u0131c\u0131 ad\u0131 veya birim ile ara"><button type="button" class="picker-clear-search">Temizle</button></div><div class="picker-modal-results"></div><div class="picker-modal-footer"><span class="picker-page-info">10 kay\u0131t listelenir.</span><div><button type="button" class="picker-prev">Önceki</button><span class="picker-page-buttons"></span><button type="button" class="picker-next">Sonraki</button></div></div></div>';
   document.body.appendChild(modal);
   const modalTitle = modal.querySelector('.picker-modal-head strong');
   const modalInput = modal.querySelector('.picker-modal-search input');
   const modalSearch = modal.querySelector('.picker-modal-search button');
   const modalResults = modal.querySelector('.picker-modal-results');
+  const modalInfo = modal.querySelector('.picker-page-info');
+  const modalPrev = modal.querySelector('.picker-prev');
+  const modalNext = modal.querySelector('.picker-next');
+  const modalPages = modal.querySelector('.picker-page-buttons');
   let activePicker = null;
   let searchTimer = null;
-  const titles = {birim:'Birim Se\u00e7', personel:'Personel Se\u00e7', kullanici:'\u0130mzalayan Kullan\u0131c\u0131 Se\u00e7'};
+  let modalPage = 1;
+  const titles = {birim:'Ana Birim Se\u00e7', 'alt-birim':'Alt Birim Se\u00e7', personel:'Personel Se\u00e7', kullanici:'\u0130mzalayan Kullan\u0131c\u0131 Se\u00e7'};
   function endpointFor(kind){
-    if(kind === 'birim') return '{% url "birim_ara" %}';
+    if(kind === 'birim' || kind === 'alt-birim') return '{% url "birim_ara" %}';
     if(kind === 'personel') return '{% url "personel_ara" %}';
     return '{% url "kullanici_ara" %}';
   }
@@ -121,14 +182,32 @@
     activePicker = null;
     modalResults.innerHTML = '';
   }
+  function labelParts(label){
+    const text = String(label || '');
+    const parts = text.split(' - ');
+    return {
+      code: parts.length > 1 ? parts.shift() : '',
+      name: parts.join(' - ') || text
+    };
+  }
+  function tableHead(kind){
+    if(kind === 'birim') return '<thead><tr><th>Daire Ba\u015fkanl\u0131\u011f\u0131 / Ana Birim</th><th>Alt Birim</th></tr></thead>';
+    if(kind === 'alt-birim') return '<thead><tr><th>\u015eube M\u00fcd\u00fcrl\u00fc\u011f\u00fc / Alt Birim</th><th>Daire Ba\u015fkanl\u0131\u011f\u0131</th></tr></thead>';
+    if(kind === 'personel') return '<thead><tr><th>Sicil No</th><th>Ad Soyad</th><th>G\u00f6rev Birimi</th></tr></thead>';
+    return '<thead><tr><th>Ad Soyad</th><th>Kullan\u0131c\u0131 Ad\u0131</th></tr></thead>';
+  }
   function itemHtml(kind, item){
     if(kind === 'birim'){
-      return `<button type="button" class="picker-option" data-birim="${escapeHtml(item.birim)}" data-alt="${escapeHtml(item.alt_birim)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong></button>`;
+      return `<tr class="picker-row" tabindex="0" data-birim="${escapeHtml(item.birim)}" data-alt="" data-label="${escapeHtml(item.label)}" data-has-children="${item.has_children ? '1' : '0'}"><td><strong>${escapeHtml(item.label)}</strong></td><td>${item.has_children ? 'Alt birimleri var' : 'Alt birimi yok'}</td></tr>`;
+    }
+    if(kind === 'alt-birim'){
+      return `<tr class="picker-row" tabindex="0" data-birim="${escapeHtml(item.birim)}" data-alt="${escapeHtml(item.alt_birim)}" data-label="${escapeHtml(item.label)}"><td><strong>${escapeHtml(item.alt_birim || item.label)}</strong></td><td>${escapeHtml(item.birim || '')}</td></tr>`;
     }
     if(kind === 'personel'){
-      return `<button type="button" class="picker-option" data-id="${escapeHtml(item.id)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.birim || '')}</small></button>`;
+      const parts = labelParts(item.label);
+      return `<tr class="picker-row" tabindex="0" data-id="${escapeHtml(item.id)}" data-label="${escapeHtml(item.label)}"><td>${escapeHtml(parts.code)}</td><td><strong>${escapeHtml(parts.name)}</strong></td><td>${escapeHtml(item.birim || '')}</td></tr>`;
     }
-    return `<button type="button" class="picker-option" data-id="${escapeHtml(item.id)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.username || '')}</small></button>`;
+    return `<tr class="picker-row" tabindex="0" data-id="${escapeHtml(item.id)}" data-label="${escapeHtml(item.label)}"><td><strong>${escapeHtml(item.label)}</strong></td><td>${escapeHtml(item.username || '')}</td></tr>`;
   }
   function chooseOption(button){
     if(!activePicker) return;
@@ -137,6 +216,16 @@
     input.value = button.dataset.label || '';
     if(kind === 'birim'){
       activePicker.querySelector('input[name="birim"]').value = button.dataset.birim || '';
+      const altPicker = document.querySelector('.filter-picker[data-kind="alt-birim"]');
+      if(altPicker){
+        altPicker.querySelector('input[name="alt_birim"]').value = '';
+        altPicker.querySelector('.picker-line input[type="text"]').value = '';
+        altPicker.querySelector('.picker-line input[type="text"]').placeholder = button.dataset.hasChildren === '1' ? 'Alt birim seçin' : 'Bu ana birimin alt birimi yok';
+      }
+      closePicker();
+      if(button.dataset.hasChildren === '1' && altPicker) openPicker(altPicker);
+      return;
+    } else if(kind === 'alt-birim'){
       activePicker.querySelector('input[name="alt_birim"]').value = button.dataset.alt || '';
     } else if(kind === 'personel'){
       activePicker.querySelector('input[name="personel"]').value = button.dataset.id || '';
@@ -145,34 +234,99 @@
     }
     closePicker();
   }
-  async function searchActive(){
+  function updateModalPager(pagination){
+    const pageInfo = pagination || {page: 1, pages: 1, total: 0, has_previous: false, has_next: false};
+    modalInfo.textContent = pageInfo.total ? `${pageInfo.total} kay\u0131t - ${pageInfo.page}/${pageInfo.pages}. sayfa` : 'Kay\u0131t yok';
+    modalPrev.disabled = !pageInfo.has_previous;
+    modalNext.disabled = !pageInfo.has_next;
+    modalPrev.dataset.page = pageInfo.has_previous ? String(pageInfo.page - 1) : String(pageInfo.page || 1);
+    modalNext.dataset.page = pageInfo.has_next ? String(pageInfo.page + 1) : String(pageInfo.page || 1);
+    const totalPages = Number(pageInfo.pages || 1);
+    const currentPage = Number(pageInfo.page || 1);
+    const pages = [];
+    for(let number = 1; number <= totalPages; number += 1){
+      if(totalPages <= 12 || number === 1 || number === totalPages || Math.abs(number - currentPage) <= 2){
+        pages.push(number);
+      } else if(pages[pages.length - 1] !== '...'){
+        pages.push('...');
+      }
+    }
+    modalPages.innerHTML = pages.map(item => item === '...'
+      ? '<span class="picker-page-ellipsis">...</span>'
+      : `<button type="button" class="picker-page-number ${item === currentPage ? 'current' : ''}" data-page="${item}">${item}</button>`
+    ).join('');
+    modalPages.querySelectorAll('.picker-page-number').forEach(button => {
+      button.addEventListener('click', () => searchActive(Number(button.dataset.page || '1')));
+    });
+  }
+  async function searchActive(page){
     if(!activePicker) return;
     const kind = activePicker.dataset.kind;
     const q = modalInput.value.trim();
+    modalPage = page || modalPage || 1;
     modalResults.innerHTML = '<div class="picker-loading">Aran\u0131yor...</div>';
-    const response = await fetch(endpointFor(kind) + '?q=' + encodeURIComponent(q));
+    updateModalPager({page: modalPage, pages: 1, total: 0, has_previous: false, has_next: false});
+    const params = new URLSearchParams({q, page: modalPage});
+    if(kind === 'alt-birim'){
+      const birim = document.querySelector('input[name="birim"]')?.value || '';
+      if(!birim){
+        modalResults.innerHTML = '<div class="no-result">Önce ana birim seçin.</div>';
+        updateModalPager({page: 1, pages: 1, total: 0, has_previous: false, has_next: false});
+        return;
+      }
+      params.set('mode', 'alt');
+      params.set('birim', birim);
+    } else if(kind === 'birim') {
+      params.set('mode', 'ana');
+    }
+    const response = await fetch(endpointFor(kind) + '?' + params.toString());
     const data = await response.json();
     const results = data.results || [];
-    modalResults.innerHTML = results.length ? results.map(item => itemHtml(kind, item)).join('') : '<div class="no-result">Sonu\u00e7 bulunamad\u0131.</div>';
-    modalResults.querySelectorAll('.picker-option').forEach(button => button.addEventListener('click', () => chooseOption(button)));
+    updateModalPager(data.pagination);
+    modalResults.innerHTML = results.length
+      ? `<div class="picker-table-wrap"><table class="picker-table">${tableHead(kind)}<tbody>${results.map(item => itemHtml(kind, item)).join('')}</tbody></table></div>`
+      : '<div class="no-result">Sonu\u00e7 bulunamad\u0131.</div>';
+    modalResults.querySelectorAll('.picker-row').forEach(row => {
+      row.addEventListener('click', () => chooseOption(row));
+      row.addEventListener('keydown', event => {
+        if(event.key === 'Enter' || event.key === ' '){
+          event.preventDefault();
+          chooseOption(row);
+        }
+      });
+    });
   }
   function openPicker(picker){
     activePicker = picker;
     const kind = picker.dataset.kind;
     const input = picker.querySelector('.picker-line input[type="text"]');
+    if(kind === 'alt-birim' && !(document.querySelector('input[name="birim"]')?.value || '')){
+      input.placeholder = 'Önce ana birim seçin';
+    }
     modalTitle.textContent = titles[kind] || 'Se\u00e7im Yap';
     modalInput.value = input.value || '';
+    modalInput.placeholder = kind === 'personel'
+      ? 'Sicil no, ad soyad veya birim ile ara'
+      : kind === 'kullanici'
+        ? 'Ad soyad veya kullan\u0131c\u0131 ad\u0131 ile ara'
+        : 'Birim ad\u0131 ile ara';
+    modalPage = 1;
     modal.classList.add('open');
     modalInput.focus();
-    searchActive();
+    searchActive(1);
   }
   modal.querySelector('.picker-modal-close').addEventListener('click', closePicker);
   modal.addEventListener('click', event => { if(event.target === modal) closePicker(); });
-  modalSearch.addEventListener('click', searchActive);
-  modalInput.addEventListener('keydown', event => { if(event.key === 'Enter'){ event.preventDefault(); searchActive(); } });
+  modalSearch.addEventListener('click', () => {
+    modalInput.value = '';
+    searchActive(1);
+  });
+  modalPrev.addEventListener('click', () => searchActive(Number(modalPrev.dataset.page || '1')));
+  modalNext.addEventListener('click', () => searchActive(Number(modalNext.dataset.page || '1')));
+  modalInput.addEventListener('keydown', event => { if(event.key === 'Enter'){ event.preventDefault(); searchActive(1); } });
   modalInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(searchActive, 250);
+    searchTimer = setTimeout(() => searchActive(1), 250);
   });
   document.addEventListener('keydown', event => { if(event.key === 'Escape' && modal.classList.contains('open')) closePicker(); });
 
@@ -184,16 +338,111 @@
     textInput.addEventListener('input',()=>{ picker.querySelectorAll('input[type="hidden"]').forEach(hidden=>hidden.value=''); });
     picker.querySelector('.clear-btn').addEventListener('click', event=>{ event.preventDefault(); event.stopPropagation(); reset(picker); });
   });
+  const rangeInput = document.getElementById('tarihAraligi');
+  if(rangeInput){
+    const startInput = document.querySelector('input[name="tarih_baslangic"]');
+    const endInput = document.querySelector('input[name="tarih_bitis"]');
+    document.querySelectorAll('.date-range-options button').forEach(button => {
+      button.addEventListener('click', () => {
+        rangeInput.value = button.dataset.range || '7';
+        document.querySelectorAll('.date-range-options button').forEach(item => item.classList.toggle('active', item === button));
+        if(startInput) startInput.value = '';
+        if(endInput) endInput.value = '';
+      });
+    });
+    [startInput, endInput].forEach(input => {
+      if(!input) return;
+      input.addEventListener('change', () => {
+        document.querySelectorAll('.date-range-options button').forEach(item => item.classList.remove('active'));
+      });
+    });
+  }
+  function closeRowMenus(){
+    document.querySelectorAll('.row-menu.open').forEach(menu => {
+      menu.classList.remove('open');
+      const pop = menu.querySelector('.row-menu-pop');
+      if(pop){
+        pop.classList.remove('is-floating');
+        pop.style.left = '';
+        pop.style.top = '';
+      }
+    });
+  }
+  function placeRowMenu(menu){
+    const trigger = menu.querySelector('.row-menu-trigger');
+    const pop = menu.querySelector('.row-menu-pop');
+    if(!trigger || !pop) return;
+    const rect = trigger.getBoundingClientRect();
+    pop.classList.add('is-floating');
+    pop.style.left = `${rect.right + 7}px`;
+    pop.style.top = `${rect.top}px`;
+    requestAnimationFrame(() => {
+      const popRect = pop.getBoundingClientRect();
+      let left = rect.right + 7;
+      let top = rect.top;
+      if(popRect.right > window.innerWidth - 10) left = Math.max(10, rect.left - popRect.width - 7);
+      if(popRect.bottom > window.innerHeight - 10) top = Math.max(10, window.innerHeight - popRect.height - 10);
+      pop.style.left = `${left}px`;
+      pop.style.top = `${top}px`;
+    });
+  }
+  document.querySelectorAll('.row-menu-pop').forEach(pop => pop.addEventListener('click', event => event.stopPropagation()));
   document.querySelectorAll('.row-menu-trigger').forEach(button => {
     button.addEventListener('click', event => {
       event.stopPropagation();
-      document.querySelectorAll('.row-menu.open').forEach(menu => {
-        if(menu !== button.closest('.row-menu')) menu.classList.remove('open');
-      });
-      button.closest('.row-menu').classList.toggle('open');
+      const menu = button.closest('.row-menu');
+      if(!menu) return;
+      const wasOpen = menu.classList.contains('open');
+      closeRowMenus();
+      if(!wasOpen){
+        menu.classList.add('open');
+        placeRowMenu(menu);
+      }
     });
   });
-  document.addEventListener('click', () => document.querySelectorAll('.row-menu.open').forEach(menu => menu.classList.remove('open')));
+  document.addEventListener('click', closeRowMenus);
+  window.addEventListener('scroll', closeRowMenus, true);
+  window.addEventListener('resize', closeRowMenus);
+  const flowModal = document.getElementById('flowConfirmModal');
+  if(flowModal){
+    const flowAction = document.getElementById('flowAction');
+    const flowTalepId = document.getElementById('flowTalepId');
+    const flowTitle = document.getElementById('flowConfirmTitle');
+    const flowText = document.getElementById('flowConfirmText');
+    const flowTargetWrap = document.getElementById('flowTargetWrap');
+    const flowTarget = document.getElementById('flowTarget');
+    const flowSubmit = document.getElementById('flowConfirmSubmit');
+    const closeFlowModal = () => { flowModal.hidden = true; flowTarget.required = false; };
+    function openFlowModal(button, action){
+      const evrakNo = button.dataset.evrakNo || 'Se\u00e7ilen';
+      flowTalepId.value = button.dataset.talepId || '';
+      flowAction.value = action === 'iade' ? 'sahibine_iade' : 'evraki_geri_cek';
+      flowSubmit.classList.remove('danger');
+      if(action === 'iade'){
+        flowTitle.textContent = 'Evrak sahibine iade edilsin mi?';
+        flowText.textContent = evrakNo + ' numaral\u0131 evrak do\u011frudan sahibine iade edilecek.';
+        flowTargetWrap.hidden = true;
+        flowTarget.innerHTML = '';
+        flowSubmit.textContent = 'Evet, iade et';
+        flowSubmit.classList.add('danger');
+      } else {
+        const source = document.getElementById(button.dataset.targetSource || '');
+        flowTarget.innerHTML = source ? source.innerHTML : '';
+        if(!flowTarget.options.length) return;
+        flowTitle.textContent = 'Evrak geri \u00e7ekilsin mi?';
+        flowText.textContent = evrakNo + ' numaral\u0131 evra\u011f\u0131n geri g\u00f6nderilece\u011fi kullan\u0131c\u0131y\u0131 se\u00e7in.';
+        flowTargetWrap.hidden = false;
+        flowTarget.required = true;
+        flowSubmit.textContent = 'Evet, geri \u00e7ek';
+      }
+      flowModal.hidden = false;
+      closeRowMenus();
+    }
+    document.querySelectorAll('.js-sahibine-iade').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); openFlowModal(button, 'iade'); }));
+    document.querySelectorAll('.js-geri-cek').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); openFlowModal(button, 'geri'); }));
+    flowModal.querySelectorAll('[data-flow-close]').forEach(button => button.addEventListener('click', closeFlowModal));
+    flowModal.addEventListener('click', event => { if(event.target === flowModal) closeFlowModal(); });
+  }
   document.querySelectorAll('.delete-leave-form').forEach(form => {
     form.addEventListener('submit', event => {
       const evrakNo = form.dataset.evrakNo || '';

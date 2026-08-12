@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="tr">
 {% load portal_extras %}
 <head>
@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}&#304;zin Portal&#305;{% endblock %}</title>
-    <link rel="stylesheet" href="/static/portal/style.css?v=40">
+    <link rel="stylesheet" href="/static/portal/style.css?v=43">
 </head>
 <body class="app-body {% if indir %}document-window{% endif %}">
     <aside class="sidebar">
@@ -20,9 +20,9 @@
             <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Ana Sayfa</a>
             <a href="{% url 'izin_menu' %}" class="{% if request.resolver_match.url_name == 'izin_menu' or request.resolver_match.url_name == 'tc_sorgula' or request.resolver_match.url_name == 'izin_evrak' or request.resolver_match.url_name == 'izin_talebi_duzenle' %}active{% endif %}">&#304;zin</a>
             <a href="{% url 'izin_ara' %}" class="{% if request.resolver_match.url_name == 'izin_ara' %}active{% endif %}">&#304;zin Ara</a>
-            {% if request.user.is_staff or request.user.is_superuser or request.user.portal_yetki.aktif_mi %}
-                <a href="{% url 'yonetim' %}" class="{% if request.resolver_match.url_name == 'yonetim' or request.resolver_match.url_name == 'gorev_birimi_yonetimi' or request.resolver_match.url_name == 'izin_talepleri_yonetim' or request.resolver_match.url_name == 'kullanici_yetkileri' or request.resolver_match.url_name == 'kontrol_eden_yonetimi' %}active{% endif %}">Y&#246;netim</a>
-            {% endif %}
+            {% for item in yonetim_nav_items %}
+                <a href="{{ item.href }}" class="{% if item.active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
         </nav>
     </aside>
     <section class="workspace">
@@ -44,7 +44,7 @@
                     </span>
                     {{ request.user.get_full_name|default:request.user.username }}
                 </div>
-                <form method="post" action="{% url 'logout' %}" class="topbar-logout-form">
+                <form method="post" action="{% url 'logout' %}" class="topbar-logout-form" id="logoutForm">
                     {% csrf_token %}
                     <button type="submit">&#199;&#305;k&#305;&#351;</button>
                 </form>
@@ -64,6 +64,32 @@
     </footer>
     <script>
     (function(){
+      var activeKey = 'izinPortalActiveTab';
+      var pendingKey = 'izinPortalLoginPending';
+      var logoutForm = document.getElementById('logoutForm');
+      var isDocumentWindow = document.body.classList.contains('document-window');
+      try {
+        if (window.sessionStorage) {
+          if (sessionStorage.getItem(pendingKey) === '1') {
+            sessionStorage.setItem(activeKey, '1');
+            sessionStorage.removeItem(pendingKey);
+          } else if (sessionStorage.getItem(activeKey) !== '1' && (isDocumentWindow || window.opener)) {
+            sessionStorage.setItem(activeKey, '1');
+          } else if (sessionStorage.getItem(activeKey) !== '1' && logoutForm) {
+            logoutForm.submit();
+            return;
+          } else {
+            sessionStorage.setItem(activeKey, '1');
+          }
+          if (logoutForm) {
+            logoutForm.addEventListener('submit', function(){
+              sessionStorage.removeItem(activeKey);
+              sessionStorage.removeItem(pendingKey);
+            });
+          }
+        }
+      } catch (error) {}
+
       document.querySelectorAll('.toast-stack .alert').forEach(function(alert){
         var close = alert.querySelector('.toast-close');
         var hide = function(){

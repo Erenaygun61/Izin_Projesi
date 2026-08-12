@@ -3,12 +3,28 @@
 {% block title %}{{ bilgi.baslik }}{% endblock %}
 {% block page_title %}{% if duzenleme %}Evrak Bilgilerini G&#252;ncelle{% else %}{{ bilgi.baslik }}{% endif %}{% endblock %}
 {% block content %}
+{% if duzenleme and talep and talep.durum == "REDDEDILDI" %}
+<aside class="reject-floating-note" id="rejectReasonNote">
+    <button type="button" class="reject-note-close" aria-label="Red nedeni notunu kapat">&times;</button>
+    <h3>Evrak Reddedildi</h3>
+    <div class="reject-reason"><b>Red nedeni</b><p>{% if talep.red_nedeni %}{{ talep.red_nedeni|linebreaksbr }}{% elif talep.aciklama %}{{ talep.aciklama|linebreaksbr }}{% else %}Red nedeni kaydedilmemiş.{% endif %}</p></div>
+    {% if talep.reddeden or talep.reddedilme_tarihi %}<div class="reject-details">{% if talep.reddeden %}<span><b>Reddeden:</b> {{ talep.reddeden.get_full_name|default:talep.reddeden.username|ad_soyad_yazimi }}</span>{% endif %}{% if talep.reddedilme_tarihi %}<span><b>Tarih:</b> {{ talep.reddedilme_tarihi|date:"d.m.Y H:i" }}</span>{% endif %}</div>{% endif %}
+</aside>
+{% endif %}
 <section class="document-layout">
     <div class="document-preview">
-        <div class="paper-toolbar"><span>&#304;&#231;erik</span><span>Ekler</span><span>&#304;lgili Evrak</span></div>
-        <div class="paper">
+        <div class="paper-toolbar attachment-tabs">
+            <button type="button" class="is-active" data-document-tab="content">&#304;&#231;erik</button>
             {% if duzenleme and talep %}
-            <div class="edit-preview">
+            <button type="button" data-document-tab="attachments">Ekler{% if ekler %}<em>{{ ekler|length }}</em>{% endif %}</button>
+            {% else %}
+            <button type="button" disabled>Ekler</button>
+            {% endif %}
+        </div>
+        <div class="paper" data-document-panel="content">
+            {% if duzenleme and talep %}
+            <div class="edit-preview-frame" data-edit-preview-frame>
+            <div class="edit-preview" data-edit-preview>
                 <div class="edit-preview-head">
                     <span>{{ talep.get_durum_display }}</span>
                     <strong>{{ talep.evrak_no }}</strong>
@@ -33,6 +49,7 @@
                     {% for rol,user in imzacilar %}<div><b>{{ rol }}</b><span>{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</span></div>{% empty %}<div><b>&#304;mzac&#305;</b><span>Tan&#305;mlanmam&#305;&#351;</span></div>{% endfor %}
                 </div>
             </div>
+            </div>
             {% else %}
             <p class="eyebrow">Yeni evrak</p>
             <h2>&#304;zin Talep Formu</h2>
@@ -40,6 +57,30 @@
             <div class="paper-line"></div><div class="paper-line short"></div>
             {% endif %}
         </div>
+        {% if duzenleme and talep %}
+        <section class="attachment-tab-panel" data-document-panel="attachments" hidden>
+            <div class="attachment-tab-head">
+                <div><p>&#304;zin evrak&#305;na eklenen belgeler</p><h2>Ekler</h2><span>Davetiye, rapor, &#246;l&#252;m belgesi ve benzeri destekleyici dosyalar&#305; evra&#287;a ekleyebilirsiniz.</span></div>
+                <b>{{ ekler|length }} dosya</b>
+            </div>
+            {% if ek_duzenlenebilir %}
+            <form method="post" enctype="multipart/form-data" action="{% url 'izin_eki_ekle' talep.id %}" class="attachment-upload-form">
+                {% csrf_token %}
+                <label class="attachment-file-picker" for="attachmentFileInput">
+                    <input id="attachmentFileInput" type="file" name="dosya" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx" required>
+                    <span class="attachment-select-button">Dosya Se&#231;</span><strong id="attachmentFileLabel">Bilgisayar&#305;n&#305;zdan belge se&#231;in</strong><small>PDF, g&#246;rsel, Word veya Excel &#183; en fazla 10 MB</small>
+                </label>
+                <button type="submit" class="attachment-upload-button">Se&#231; ve Ekle</button>
+            </form>
+            {% endif %}
+            <div class="attachment-list">
+                {% for ek in ekler %}
+                <article class="attachment-item"><span class="attachment-file-icon" aria-hidden="true">&#8615;</span><div class="attachment-file-info"><strong>{{ ek.dosya_adi }}</strong><span>{% if ek.ekleyen %}{{ ek.ekleyen.get_full_name|default:ek.ekleyen.username }} &#183; {% endif %}{{ ek.olusturma_zamani|date:"d.m.Y H:i" }}</span></div><div class="attachment-item-actions"><a href="{% url 'izin_eki_indir' talep.id ek.id %}?inline=1" target="_blank" rel="opener">G&#246;r&#252;nt&#252;le</a><a href="{% url 'izin_eki_indir' talep.id ek.id %}">&#304;ndir</a>{% if ek_duzenlenebilir %}<form method="post" action="{% url 'izin_eki_sil' talep.id ek.id %}" onsubmit="return confirm('Bu eki kald\u0131rmak istiyor musunuz?')">{% csrf_token %}<button type="submit">Sil</button></form>{% endif %}</div></article>
+                {% empty %}<div class="attachment-empty">Hen&#252;z ek dosya eklenmedi.</div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
     </div>
     <aside class="document-panel">
         <div class="doc-panel-title"><h2>Di&#287;er</h2><span>&#9662;</span></div>
@@ -58,6 +99,7 @@
             <div class="bottom-actions">
                 <a href="{% url 'dashboard' %}">Vazge&#231;</a>
                 <button class="draft-action" type="submit" name="islem" value="taslak_kaydet">Tasla&#287;&#305; Kaydet</button>
+                {% if duzenleme and talep %}<button class="print-action" type="submit" formaction="{% url 'izin_talebi_islak_cikti' talep.id %}">&#199;&#305;kt&#305; Al</button>{% endif %}
                 <button type="submit" name="islem" value="onaya_sun" data-confirm-kind="approve" data-confirm-title="Onaya Sunulsun mu?" data-confirm-message="&#304;zin evrak&#305; kontrol ve imza s&#252;recine g&#246;nderilecek. Onayl&#305;yor musunuz?">Onaya Sun</button>
                 {% if silinebilir %}<button class="delete-action" type="submit" name="islem" value="sil" formnovalidate data-confirm-kind="delete" data-confirm-title="Evrak Silinsin mi?" data-confirm-message="Bu izin evrak&#305;n&#305;n silinmesini onayl&#305;yor musunuz?">Evrak&#305; Sil</button>{% endif %}
             </div>
@@ -67,6 +109,33 @@
 
 <script>
 (function(){
+  const documentTabs = document.querySelectorAll('[data-document-tab]');
+  const documentPanels = document.querySelectorAll('[data-document-panel]');
+  documentTabs.forEach(tab => tab.addEventListener('click', () => {
+    if(tab.disabled) return;
+    const target = tab.dataset.documentTab;
+    documentTabs.forEach(item => item.classList.toggle('is-active', item === tab));
+    documentPanels.forEach(panel => { panel.hidden = panel.dataset.documentPanel !== target; });
+  }));
+  const attachmentInput = document.getElementById('attachmentFileInput');
+  const attachmentLabel = document.getElementById('attachmentFileLabel');
+  if(attachmentInput && attachmentLabel){ attachmentInput.addEventListener('change', () => { attachmentLabel.textContent = attachmentInput.files && attachmentInput.files[0] ? attachmentInput.files[0].name : 'Bilgisayarınızdan belge seçin'; }); }
+  const previewFrame = document.querySelector('[data-edit-preview-frame]');
+  const editPreview = document.querySelector('[data-edit-preview]');
+  function resizeEditPreview(){
+    if(!previewFrame || !editPreview) return;
+    const baseWidth = 720;
+    const available = Math.max(260, previewFrame.clientWidth);
+    const scale = Math.min(1, available / baseWidth);
+    previewFrame.style.setProperty('--edit-preview-scale', String(scale));
+    previewFrame.style.setProperty('--edit-preview-height', editPreview.scrollHeight + 'px');
+    previewFrame.style.setProperty('--edit-preview-frame-height', Math.ceil(editPreview.scrollHeight * scale) + 'px');
+  }
+  if(window.ResizeObserver && previewFrame){
+    new ResizeObserver(resizeEditPreview).observe(previewFrame);
+  }
+  window.addEventListener('resize', resizeEditPreview);
+  resizeEditPreview();
   function parseGun(value){
     let raw = String(value || '').trim().replace(/\s/g, '');
     if(!raw) return 0;
@@ -160,12 +229,19 @@
     }
     const aciklamaNode = preview('aciklama');
     if(aciklamaNode) aciklamaNode.textContent = aciklama;
+    resizeEditPreview();
   }
 
   if(hak && kullanilan && kalan){
     kalan.readOnly = true;
     kalan.setAttribute('tabindex', '-1');
     function updateKalan(){
+      if(!String(hak.value || '').trim()){
+        kalan.value = '';
+        kullanilan.classList.remove('balance-overflow');
+        updatePreview();
+        return;
+      }
       const sonuc = parseGun(hak.value) - parseGun(kullanilan.value);
       kalan.value = formatGun(Math.max(0, sonuc));
       kullanilan.classList.toggle('balance-overflow', sonuc < 0);
@@ -219,6 +295,13 @@
     ok.textContent = submitter.dataset.confirmKind === 'delete' ? 'Evet, Sil' : 'Evet, Onaya Sun';
     modal.classList.add('open');
   });
+})();
+</script>
+<script>
+(() => {
+  const note = document.getElementById('rejectReasonNote');
+  const close = note && note.querySelector('.reject-note-close');
+  if(close) close.addEventListener('click', () => note.remove());
 })();
 </script>
 {% endblock %}

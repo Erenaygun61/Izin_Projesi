@@ -4,6 +4,7 @@ from xml.sax.saxutils import escape
 from decimal import Decimal, InvalidOperation
 import re
 
+from django.conf import settings
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -23,24 +24,32 @@ from .models import _ad_soyad_bicimi
 STATIC_PORTAL = Path(__file__).resolve().parent.parent / "static" / "portal"
 BELEDIYE_LOGO = STATIC_PORTAL / "trabzon-buyuksehir-logo.jpg"
 TISKI_LOGO = STATIC_PORTAL / "logo1.png"
-ARIAL = Path(r"C:\Windows\Fonts\arial.ttf")
-ARIAL_BOLD = Path(r"C:\Windows\Fonts\arialbd.ttf")
+FONT_ADAYLARI = [
+    (
+        Path(getattr(settings, "PORTAL_PDF_FONT_REGULAR", "")),
+        Path(getattr(settings, "PORTAL_PDF_FONT_BOLD", "")),
+    ),
+    (Path(r"C:\Windows\Fonts\arial.ttf"), Path(r"C:\Windows\Fonts\arialbd.ttf")),
+    (Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"), Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")),
+    (Path("/Library/Fonts/Arial.ttf"), Path("/Library/Fonts/Arial Bold.ttf")),
+]
 
 
 def _fontlar():
     """Türkçe karakterleri PDF'de eksiksiz gösterecek yazı tiplerini kaydeder."""
     regular, bold = "Helvetica", "Helvetica-Bold"
-    try:
-        if "PortalArial" not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(TTFont("PortalArial", str(ARIAL)))
-        if "PortalArialBold" not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(TTFont("PortalArialBold", str(ARIAL_BOLD)))
-        regular, bold = "PortalArial", "PortalArialBold"
-    except Exception:
-        # Yerel Windows yazı tipi bulunamazsa belge yine oluşturulsun.
-        pass
+    for regular_path, bold_path in FONT_ADAYLARI:
+        if not regular_path or not bold_path or not regular_path.exists() or not bold_path.exists():
+            continue
+        try:
+            if "PortalSans" not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont("PortalSans", str(regular_path)))
+            if "PortalSansBold" not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont("PortalSansBold", str(bold_path)))
+            return "PortalSans", "PortalSansBold"
+        except Exception:
+            continue
     return regular, bold
-
 
 def _metin(value, fallback="-"):
     if value is None:
@@ -131,7 +140,7 @@ def _p(value, style):
     return Paragraph(escape(_metin(value)), style)
 
 
-def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama):
+def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama, islak_imza=False):
     cep_telefonu = getattr(talep, "cep_telefonu", "") or getattr(personel, "cep_tel", "")
     """İzin isteği onayını tek sayfalık, indirilebilir PDF olarak üretir."""
     regular, bold = _fontlar()
@@ -194,8 +203,11 @@ def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama):
     story += [antet, Spacer(1, 3 * mm)]
 
     # Tarih/sayı soldadır; birim adı antette tekrarlanmaz.
+    evrak_sayisi = escape(_metin(talep.evrak_no))
+    if not islak_imza:
+        evrak_sayisi = f"E.{evrak_sayisi}"
     story.append(Paragraph(
-        f"<b>Evrak Tarih ve Sayısı:</b> {_tarih(talep.kurum_kayit_tarihi)} - E.{escape(_metin(talep.evrak_no))}",
+        f"<b>Evrak Tarih ve Sayısı:</b> {_tarih(talep.kurum_kayit_tarihi)} - {evrak_sayisi}",
         ParagraphStyle("doc_number", parent=cell_bold, alignment=TA_LEFT, fontSize=9.4),
     ))
     story += [Spacer(1, 2 * mm), Paragraph("İZİN İSTEĞİ ONAYI", subtitle), Spacer(1, 3 * mm)]
@@ -272,47 +284,81 @@ def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama):
     ]))
     story.append(requester)
 
-    paraf_kutulari = [
-        Paragraph(
-            f"<b>İzin Talebinde Bulunan</b><br/><br/>"
-            f"e-Paraflıdır<br/>{escape(_ad_soyad_bicimi(personel.ad_soyad))}<br/>{escape(_belge_gorevi(personel))}",
+    def imza_paragrafi(baslik, ad_soyad, rol="", durum_satiri=""):
+        bosluk = "<br/><br/><br/>" if islak_imza else "<br/><br/>"
+        durum = "" if islak_imza or not durum_satiri else f"{escape(durum_satiri)}<br/>"
+        return Paragraph(
+            f"<b>{escape(baslik)}</b>{bosluk}{durum}{escape(ad_soyad)}<br/>{escape(rol)}",
             sign_center,
         )
-    ]
-    if len(imzacilar) > 1:
-        rol, user = imzacilar[0]
-        paraf_kutulari.append(Paragraph(
-            f"<b>Teklif Eden</b><br/><br/>"
-            f"{'e-Paraflıdır' if talep.durum in {'IMZA_SURECINDE', 'ONAYLANDI'} or talep.imza_sirasi > 0 else 'Paraf Bekliyor'}<br/>"
-            f"{escape(_kullanici_adi(user))}<br/>{escape(rol)}",
-            sign_center,
-        ))
-    paraf_table = Table([paraf_kutulari], colWidths=[180 * mm / len(paraf_kutulari)] * len(paraf_kutulari), rowHeights=[52 * mm])
-    paraf_table.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 1.4, colors.black),
-        ("INNERGRID", (0, 0), (-1, -1), 0.95, colors.black),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-    ]))
-    story.append(paraf_table)
 
-    if imzacilar:
-        rol, user = imzacilar[-1]
-        approval = Paragraph(
-            f"<b>Onaylayan</b><br/><br/>{'e-İmzalıdır' if talep.durum == 'ONAYLANDI' or talep.imza_tamamlanma_tarihi else 'İmza Bekliyor'}<br/>"
-            f"{escape(_kullanici_adi(user))}<br/>{escape(rol)}",
-            sign_center,
+    talep_eden = imza_paragrafi(
+        "İzin Talebinde Bulunan",
+        _ad_soyad_bicimi(personel.ad_soyad),
+        _belge_gorevi(personel),
+        "e-Paraflıdır",
+    )
+
+    # Tek imzacı varsa, talep eden ile onaylayan aynı imza satırında yer alır.
+    # Böylece iki imzalı evrakta gereksiz ikinci bir blok oluşmaz.
+    if len(imzacilar) == 1:
+        rol, user = imzacilar[0]
+        onaylayan = imza_paragrafi(
+            "Onaylayan",
+            _kullanici_adi(user),
+            rol,
+            "e-İmzalıdır" if talep.durum == "ONAYLANDI" or talep.imza_tamamlanma_tarihi else "İmza Bekliyor",
         )
+        iki_imza_table = Table(
+            [[talep_eden, onaylayan]],
+            colWidths=[90 * mm, 90 * mm],
+            rowHeights=[58 * mm],
+        )
+        iki_imza_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 1.4, colors.black),
+            ("INNERGRID", (0, 0), (-1, -1), 0.95, colors.black),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ]))
+        story.append(iki_imza_table)
     else:
-        approval = Paragraph("<b>Onaylayan</b><br/>Birimi için imzacı tanımlanmamış.", sign_center)
-    approval_table = Table([[approval]], colWidths=[180 * mm], rowHeights=[48 * mm])
-    approval_table.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 1.4, colors.black),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-    ]))
-    story.append(approval_table)
+        paraf_kutulari = [talep_eden]
+        if len(imzacilar) > 1:
+            rol, user = imzacilar[0]
+            paraf_kutulari.append(imza_paragrafi(
+                "Teklif Eden",
+                _kullanici_adi(user),
+                rol,
+                "e-Paraflıdır" if talep.durum in {"IMZA_SURECINDE", "ONAYLANDI"} or talep.imza_sirasi > 0 else "Paraf Bekliyor",
+            ))
+        paraf_table = Table([paraf_kutulari], colWidths=[180 * mm / len(paraf_kutulari)] * len(paraf_kutulari), rowHeights=[52 * mm])
+        paraf_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 1.4, colors.black),
+            ("INNERGRID", (0, 0), (-1, -1), 0.95, colors.black),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ]))
+        story.append(paraf_table)
+
+        if imzacilar:
+            rol, user = imzacilar[-1]
+            approval = imza_paragrafi(
+                "Onaylayan",
+                _kullanici_adi(user),
+                rol,
+                "e-İmzalıdır" if talep.durum == "ONAYLANDI" or talep.imza_tamamlanma_tarihi else "İmza Bekliyor",
+            )
+        else:
+            approval = Paragraph("<b>Onaylayan</b><br/>Birimi için imzacı tanımlanmamış.", sign_center)
+        approval_table = Table([[approval]], colWidths=[180 * mm], rowHeights=[48 * mm])
+        approval_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 1.4, colors.black),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ]))
+        story.append(approval_table)
     story += [Spacer(1, 2 * mm), Paragraph(
         f"<b>Kontrol Eden</b><br/><b>Personel İzin Kontrolü:</b> {escape(_kullanici_adi(talep.kontrol_eden))}", foot
     )]
@@ -321,46 +367,96 @@ def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama):
 
 
 def izin_excel_olustur(talep, personel, imzacilar, goreve_baslama):
-    cep_telefonu = getattr(talep, "cep_telefonu", "") or getattr(personel, "cep_tel", "")
     """Aynı evrak verilerini düzenlenebilir Excel dosyası olarak üretir."""
+    cep_telefonu = getattr(talep, "cep_telefonu", "") or getattr(personel, "cep_tel", "")
     wb = Workbook()
     ws = wb.active
     ws.title = "İzin İsteği"
     ws.sheet_view.showGridLines = False
-    for col, width in {"A": 23, "B": 29, "C": 24, "D": 28}.items():
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 1
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_margins.left = 0.35
+    ws.page_margins.right = 0.35
+    ws.page_margins.top = 0.35
+    ws.page_margins.bottom = 0.35
+
+    for col, width in {"A": 19, "B": 31, "C": 23, "D": 23}.items():
         ws.column_dimensions[col].width = width
-    for row in range(1, 30):
+    for row in range(1, 34):
         ws.row_dimensions[row].height = 21
     thin = Side(style="thin", color="111111")
+    medium = Side(style="medium", color="111111")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    outer_border = Border(left=medium, right=medium, top=medium, bottom=medium)
+    no_border = Border()
+    label_fill = PatternFill("solid", fgColor="EAF3F5")
     heading = Font(name="Arial", size=12, bold=True)
+    heading_big = Font(name="Arial", size=13, bold=True)
     body = Font(name="Arial", size=10)
+    body_bold = Font(name="Arial", size=10, bold=True)
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
     left = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-    try:
-        image = ExcelImage(str(BELEDIYE_LOGO))
-        image.width, image.height = 65, 65
-        ws.add_image(image, "A1")
-    except Exception:
-        pass
-    ws.merge_cells("B1:D1")
-    ws["B1"] = "T.C.\nTRABZON BÜYÜKŞEHİR BELEDİYESİ\nTrabzon İçmesuyu ve Kanalizasyon İdaresi Genel Müdürlüğü"
-    ws["B1"].font = heading
-    ws["B1"].alignment = center
+    def style_range(cell_range, *, cell_border=border, fill=None, font=None, alignment=None):
+        for row_cells in ws[cell_range]:
+            for cell in row_cells:
+                cell.border = cell_border
+                if fill:
+                    cell.fill = fill
+                if font:
+                    cell.font = font
+                if alignment:
+                    cell.alignment = alignment
+
+    def merge_write(cell_range, value, *, font=body, alignment=left, fill=None, cell_border=border):
+        ws.merge_cells(cell_range)
+        cell = ws[cell_range.split(":")[0]]
+        cell.value = value
+        style_range(cell_range, cell_border=cell_border, fill=fill, font=font, alignment=alignment)
+        return cell
+
+    def write_cell(cell_ref, value, *, font=body, alignment=left, fill=None, cell_border=border):
+        cell = ws[cell_ref]
+        cell.value = value
+        cell.font = font
+        cell.alignment = alignment
+        cell.border = cell_border
+        if fill:
+            cell.fill = fill
+        return cell
+
+    def add_logo(path, anchor, size):
+        try:
+            image = ExcelImage(str(path))
+            image.width, image.height = size, size
+            ws.add_image(image, anchor)
+        except Exception:
+            pass
+
+    add_logo(BELEDIYE_LOGO, "A1", 58)
+    add_logo(TISKI_LOGO, "D1", 62)
+    merge_write(
+        "B1:C1",
+        "T.C.\nTRABZON BÜYÜKŞEHİR BELEDİYESİ\nTrabzon İçmesuyu ve Kanalizasyon İdaresi Genel Müdürlüğü",
+        font=heading_big,
+        alignment=center,
+        cell_border=no_border,
+    )
+    ws["A1"].border = no_border
+    ws["D1"].border = no_border
+    ws["A1"].alignment = center
+    ws["D1"].alignment = center
     ws.row_dimensions[1].height = 63
-    ws.merge_cells("A3:D3")
-    ws["A3"] = f"Evrak Tarih ve Sayısı: {_tarih(talep.kurum_kayit_tarihi)} - E.{talep.evrak_no}"
-    ws["A3"].font = Font(name="Arial", size=10, bold=True)
-    ws["A3"].alignment = left
-    ws.merge_cells("A4:D4")
-    ws["A4"] = "İZİN İSTEĞİ ONAYI"
-    ws["A4"].font = heading
-    ws["A4"].alignment = center
+    merge_write("A3:D3", f"Evrak Tarih ve Sayısı: {_tarih(talep.kurum_kayit_tarihi)} - E.{talep.evrak_no}", font=body_bold, alignment=left, cell_border=no_border)
+    merge_write("A4:D4", "İZİN İSTEĞİ ONAYI", font=heading, alignment=center, cell_border=no_border)
+    ws.row_dimensions[4].height = 26
 
     ust_birim, alt_birim = _birim_satirlari(personel)
+    merge_write("A6:A7", "Birimi", font=body_bold, alignment=center, fill=label_fill)
+    merge_write("B6:D7", "\n".join(part for part in (ust_birim, alt_birim) if part), font=body_bold, alignment=center)
     values = [
-        ("Birimi", f"{ust_birim}\n{alt_birim}".strip()),
         ("Adı Soyadı", _ad_soyad_bicimi(personel.ad_soyad), "Ait Olduğu Yıl", _metin(talep.ait_oldugu_yil)),
         ("Görevi", _belge_gorevi(personel), "İzin Başlangıç Tarihi", _tarih(talep.baslangic_tarihi)),
         ("T.C. Kimlik No", personel.tc_no, "İzin Bitiş Tarihi", _tarih(talep.bitis_tarihi)),
@@ -368,40 +464,84 @@ def izin_excel_olustur(talep, personel, imzacilar, goreve_baslama):
         ("İzin Türü", _metin(getattr(talep.izin_turu, "ad", None)), "Toplam İzin", _izin_gunu(talep.izin_hakki)),
         ("Talep Ettiği İzin Süresi", _izin_gunu(talep.kullanilan_gun), "Kalan İzin Süresi", _izin_gunu(talep.kalan_izin)),
     ]
-    row = 6
-    for value in values:
-        if len(value) == 2:
-            ws.cell(row, 1, value[0]); ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=4); ws.cell(row, 2, value[1])
-            cells = [ws.cell(row, 1), ws.cell(row, 2)]
+    for row_idx, value in enumerate(values, 8):
+        for col_idx, text in enumerate(value, 1):
+            write_cell(
+                f"{get_column_letter(col_idx)}{row_idx}",
+                text,
+                font=body_bold if col_idx in {1, 3} else body,
+                alignment=center if col_idx in {1, 3} else left,
+                fill=label_fill if col_idx in {1, 3} else None,
+            )
+
+    note_row = 14
+    merge_write(
+        f"A{note_row}:D{note_row + 3}",
+        (
+            "Açıklama:\n"
+            f"{_izin_aciklamasi(talep)}\n\n"
+            "Gereğini arz ederim.\n"
+            f"Statü: {_personel_tipi_etiketi(talep)}        Kalan İzin Süresi: {_izin_gunu(talep.kalan_izin)}"
+        ),
+        font=body,
+        alignment=Alignment(horizontal="left", vertical="top", wrap_text=True),
+    )
+    for row_idx in range(note_row, note_row + 4):
+        ws.row_dimensions[row_idx].height = 24
+
+    phone_row = 18
+    merge_write(f"A{phone_row}:D{phone_row}", f"Cep Telefonu: {_telefon_bicimi(cep_telefonu)}", font=body_bold, alignment=left)
+
+    sign_start = 19
+    sign_end = 24
+    talep_eden = (
+        "İzin Talebinde Bulunan\n\n"
+        f"{'e-Paraflıdır' if _kullanici_parafladi_mi(talep, talep.kullanici) else 'Paraf Bekliyor'}\n"
+        f"{_ad_soyad_bicimi(personel.ad_soyad)}\n"
+        f"{_belge_gorevi(personel)}"
+    )
+    if len(imzacilar) == 1:
+        rol, user = imzacilar[0]
+        onaylayan = (
+            "Onaylayan\n\n"
+            f"{'e-İmzalıdır' if talep.durum == 'ONAYLANDI' or talep.imza_tamamlanma_tarihi else 'İmza Bekliyor'}\n"
+            f"{_kullanici_adi(user)}\n{rol}"
+        )
+        merge_write(f"A{sign_start}:B{sign_end}", talep_eden, font=body_bold, alignment=center, cell_border=outer_border)
+        merge_write(f"C{sign_start}:D{sign_end}", onaylayan, font=body_bold, alignment=center, cell_border=outer_border)
+        row = sign_end + 1
+    else:
+        merge_write(f"A{sign_start}:B{sign_end}", talep_eden, font=body_bold, alignment=center, cell_border=outer_border)
+        if len(imzacilar) > 1:
+            rol, user = imzacilar[0]
+            teklif_eden = (
+                "Teklif Eden\n\n"
+                f"{'e-Paraflıdır' if _kullanici_parafladi_mi(talep, user) else 'Paraf Bekliyor'}\n"
+                f"{_kullanici_adi(user)}\n{rol}"
+            )
+            merge_write(f"C{sign_start}:D{sign_end}", teklif_eden, font=body_bold, alignment=center, cell_border=outer_border)
         else:
-            for col, text in enumerate(value, 1):
-                ws.cell(row, col, text)
-            cells = [ws.cell(row, col) for col in range(1, 5)]
-        for item in cells:
-            item.font = body; item.border = border; item.alignment = left
-        ws.cell(row, 1).font = Font(name="Arial", size=10, bold=True)
-        ws.cell(row, 2).alignment = left
-        if len(value) == 4:
-            ws.cell(row, 3).font = Font(name="Arial", size=10, bold=True)
-            ws.cell(row, 4).alignment = left
-        row += 1
-    ws.merge_cells(start_row=row, start_column=1, end_row=row + 3, end_column=4)
-    ws.cell(row, 1, "Açıklama:\n" + _izin_aciklamasi(talep) + "\n\nGereğini arz ederim.")
-    ws.cell(row, 1).font = body; ws.cell(row, 1).alignment = left; ws.cell(row, 1).border = border
-    row += 5
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
-    ws.cell(row, 1, f"e-Paraflıdır\n{_ad_soyad_bicimi(personel.ad_soyad)}\n{_belge_gorevi(personel)}")
-    ws.cell(row, 1).font = Font(name="Arial", size=10, bold=True); ws.cell(row, 1).alignment = center; ws.cell(row, 1).border = border
-    row += 2
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
-    onaylayan = _kullanici_adi(imzacilar[-1][1]) if imzacilar else "Tanımlanmamış"
-    rol = imzacilar[-1][0] if imzacilar else ""
-    ws.cell(row, 1, f"Onaylayan\n{onaylayan}\n{rol}")
-    ws.cell(row, 1).font = Font(name="Arial", size=10, bold=True); ws.cell(row, 1).alignment = center; ws.cell(row, 1).border = border
-    row += 2
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
-    ws.cell(row, 1, f"Kontrol Eden: {_kullanici_adi(talep.kontrol_eden)}")
-    ws.cell(row, 1).font = Font(name="Arial", size=9); ws.cell(row, 1).alignment = left
+            merge_write(f"C{sign_start}:D{sign_end}", "", font=body_bold, alignment=center, cell_border=outer_border)
+        row = sign_end + 1
+        rol, user = imzacilar[-1] if imzacilar else ("", None)
+        approval = (
+            "Onaylayan\n\n"
+            f"{'e-İmzalıdır' if talep.durum == 'ONAYLANDI' or talep.imza_tamamlanma_tarihi else 'İmza Bekliyor'}\n"
+            f"{_kullanici_adi(user)}\n{rol}"
+        )
+        merge_write(f"A{row}:D{row + 4}", approval, font=body_bold, alignment=center, cell_border=outer_border)
+        row += 5
+    for row_idx in range(sign_start, row):
+        ws.row_dimensions[row_idx].height = 23
+
+    merge_write(
+        f"A{row}:D{row + 1}",
+        f"Kontrol Eden\nPersonel İzin Kontrolü: {_kullanici_adi(talep.kontrol_eden)}",
+        font=Font(name="Arial", size=9),
+        alignment=left,
+        cell_border=no_border,
+    )
+    ws.print_area = f"A1:D{row + 1}"
 
     buffer = BytesIO()
     wb.save(buffer)

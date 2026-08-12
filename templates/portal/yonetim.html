@@ -6,17 +6,23 @@
 <section class="section-head colorful-head">
     <p class="eyebrow">Y&#246;netim Merkezi</p>
     <h2>&#304;zin portal&#305; y&#246;netim i&#351;lemleri</h2>
-    <p>G&#246;rev birimi imzac&#305;lar&#305;, vekaletler, kullan&#305;c&#305; yetkileri ve izin evrak ak&#305;&#351;&#305; ayr&#305; ekranlardan takip edilir. Kontrol eden ki&#351;i Kullan&#305;c&#305; Yetkileri ekran&#305;ndan se&#231;ilir.</p>
+    <p>G&#246;rev birimi imzac&#305;lar&#305;, vekaletler, kullan&#305;c&#305; yetkileri, personel verileri ve izin evrak ak&#305;&#351;&#305; ayr&#305; ekranlardan takip edilir.</p>
 </section>
 <section class="quick-tabs management-tabs">
-    {% if tam_yetkili or birim_yetkili %}
-    <a href="{% url 'gorev_birimi_yonetimi' %}"><strong>G&#246;rev Birimi Y&#246;netimi</strong><span>Birim imzac&#305;lar&#305; ve vekaletler</span></a>
+    {% if tam_yetkili or gorev_birimi_yetkili %}
+    <a href="{% url 'gorev_birimi_yonetimi' %}"><strong>G&#246;rev Birimi Y&#246;netimi</strong><span>Birim imzac&#305;lar&#305;n&#305; d&#252;zenle</span></a>
+    {% endif %}
+    {% if tam_yetkili or personel_veri_yetkili %}
+    <a href="{% url 'personel_veri_yonetimi' %}"><strong>Personel Veri Y&#246;netimi</strong><span>&#214;zl&#252;kten se&#231;erek aktar, portalda yerel olarak d&#252;zenle</span></a>
+    {% endif %}
+    {% if tam_yetkili or vekalet_yetkili %}
+    <a href="{% url 'gorev_birimi_yonetimi' %}?sekme=vekalet#vekalet"><strong>Vekalet D&#252;zenleme</strong><span>Asil imzac&#305; yerine vekil tan&#305;mla</span></a>
     {% endif %}
     {% if tam_yetkili %}
-    <a href="{% url 'personel_veri_yonetimi' %}"><strong>Personel Veri Yönetimi</strong><span>Özlükten seçerek aktar, portalda yerel olarak düzenle</span></a>
-    <a href="{% url 'gorev_birimi_yonetimi' %}#vekalet"><strong>Vekalet D&#252;zenleme</strong><span>Asil imzac&#305; yerine vekil tan&#305;mla</span></a>
     <a href="{% url 'kullanici_yetkileri' %}"><strong>Kullan&#305;c&#305; Yetkileri</strong><span>G&#246;rev bazl&#305; portal yetkilerini tan&#305;mla</span></a>
     {% endif %}
-    {% if evrak_yetkili %}<a href="{% url 'izin_talepleri_yonetim' %}"><strong>&#304;zin Talepleri</strong><span>Evrak&#305; geri &#231;ek, sahibine iade et, takip et</span></a>{% endif %}
+    {% if evrak_yetkili %}
+    <a href="{% url 'izin_talepleri_yonetim' %}"><strong>&#304;zin Talepleri</strong><span>Evrak&#305; geri &#231;ek, sahibine iade et, takip et</span></a>
+    {% endif %}
 </section>
 {% endblock %}

@@ -2,8 +2,9 @@
 {% block title %}G&#246;rev Birimi Y&#246;netimi{% endblock %}
 {% block page_title %}G&#246;rev Birimi Y&#246;netimi{% endblock %}
 {% block content %}
-<section class="section-head colorful-head"><p class="eyebrow">Y&#246;netim</p><h2>G&#246;rev birimi imzac&#305;lar&#305;</h2><p>Liste kendili&#287;inden de&#287;i&#351;mez. Portal personel kartlar&#305;nda yapt&#305;&#287;&#305;n&#305;z de&#287;i&#351;iklikleri birimlere yans&#305;tmak istedi&#287;inizde a&#351;a&#287;&#305;daki senkronizasyon i&#351;lemini ba&#351;lat&#305;n.</p><form method="post" class="inline-sync-form">{% csrf_token %}<input type="hidden" name="islem" value="birim_senkronize"><button class="green-action" type="submit">Verileri Senkronize Et</button></form></section>
+<section class="section-head colorful-head"><p class="eyebrow">Y&#246;netim</p><h2>{% if gorev_birimi_yetkili and vekalet_yetkili %}G&#246;rev birimi ve vekalet i&#351;lemleri{% elif vekalet_yetkili %}Vekalet d&#252;zenleme{% else %}G&#246;rev birimi imzac&#305;lar&#305;{% endif %}</h2><p>{% if gorev_birimi_yetkili %}Liste kendili&#287;inden de&#287;i&#351;mez. Portal personel kartlar&#305;nda yapt&#305;&#287;&#305;n&#305;z de&#287;i&#351;iklikleri birimlere yans&#305;tmak istedi&#287;inizde senkronizasyon i&#351;lemini ba&#351;lat&#305;n.{% else %}Asil imzac&#305; yerine belirli tarih aral&#305;&#287;&#305;nda vekil tan&#305;mlayabilirsiniz.{% endif %}</p>{% if gorev_birimi_yetkili %}<form method="post" class="inline-sync-form">{% csrf_token %}<input type="hidden" name="islem" value="birim_senkronize"><button class="green-action" type="submit">Verileri Senkronize Et</button></form>{% endif %}</section>
 
+{% if gorev_birimi_yetkili %}
 <form method="post" class="unit-board portal-org-board">{% csrf_token %}<input type="hidden" name="islem" value="imzaci_kaydet">
     <div class="unit-board-head portal-org-head">
         <div><strong>Organizasyon Şeması</strong><span>Genel Müdürlük → Genel Müdür Yardımcıları → Daire Başkanlıkları → Şube Müdürlükleri</span></div>
@@ -16,7 +17,11 @@
             <div class="empty-state">Görev birimi kaydı bulunamadı. Önce verileri senkronize edin.</div>
         {% endfor %}
     </div>
-</form><section class="grid two management-grid">
+</form>
+{% endif %}
+
+{% if vekalet_yetkili %}
+<section class="grid two management-grid" id="vekalet">
     <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="islem" value="vekalet_ekle">
         <div class="panel-title"><h2>Vekalet Ekle</h2></div>
         <div class="stack-form">
@@ -37,7 +42,7 @@
             <button type="submit">Vekalet kaydet</button>
         </div>
     </form>
-    <section class="panel vekalet-history" id="vekalet">
+    <section class="panel vekalet-history">
         <div class="panel-title">
             <div>
                 <h2>Vekalet Ge&#231;mi&#351;i</h2>
@@ -45,11 +50,12 @@
             </div>
         </div>
         <form method="get" class="vekalet-search">
+            <input type="hidden" name="sekme" value="vekalet">
             <label>As&#305;l veya vekil ara
                 <input type="text" name="vekalet_q" value="{{ vekalet_q }}" placeholder="&#214;rn: Zeki Yami&#231;, erenaygun">
             </label>
             <button type="submit" class="green-action">Ara</button>
-            {% if vekalet_q %}<a class="clear-search-action" href="{% url 'gorev_birimi_yonetimi' %}#vekalet">Temizle</a>{% endif %}
+            {% if vekalet_q %}<a class="clear-search-action" href="{% url 'gorev_birimi_yonetimi' %}?sekme=vekalet#vekalet">Temizle</a>{% endif %}
         </form>
         <div class="table-scroll">
             <table class="vekalet-table">
@@ -72,6 +78,7 @@
         </div>
     </section>
 </section>
+{% endif %}
 <script>
 (function(){
   document.querySelectorAll('.portal-org-toggle').forEach(btn => {

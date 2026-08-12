@@ -9,17 +9,17 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 
 @method_decorator([never_cache, ensure_csrf_cookie], name="dispatch")
 class IzinLoginView(LoginView):
-    """Login sayfas?nda her a??l??ta taze CSRF ?erezi ?retir."""
+    """Giriş sayfasında her açılışta taze CSRF çerezi üretir."""
 
     pass
 
 
 def csrf_failure(request, reason=""):
-    """Bayat/kar??m?? CSRF tokenlar?nda kullan?c?y? 403 sayfas?na d???rme."""
+    """Bayat veya karışmış CSRF tokenlarında kullanıcıyı 403 sayfasına düşürme."""
 
     messages.warning(
         request,
-        "Oturum g?venlik bilginiz yenilendi. L?tfen tekrar giri? yap?n.",
+        "Oturum güvenlik bilginiz yenilendi. Lütfen tekrar giriş yapın.",
     )
     login_url = reverse("login")
     next_url = request.POST.get("next") or request.GET.get("next") or request.get_full_path()

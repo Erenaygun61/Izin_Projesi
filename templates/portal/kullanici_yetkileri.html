@@ -23,11 +23,14 @@
             <label>A&#231;&#305;klama<input type="text" name="aciklama" class="permission-note" placeholder="&#214;rn: izin evrak ak&#305;&#351;&#305; ve takip yetkisi"></label>
         </div>
 
-        <div class="permission-heading"><strong>Genel Y&#246;netim Yetkileri</strong><span>Bunlar portal&#305;n y&#246;netim men&#252;lerine eri&#351;im verir; evrak i&#351;lemlerini a&#351;a&#287;&#305;daki personel tipi kartlar&#305;ndan ayr&#305;ca se&#231;in.</span></div>
+        <div class="permission-heading"><strong>Genel ve ekran bazl&#305; yetkiler</strong><span>Evrak yetkileri sistem i&#231;inde kullan&#305;l&#305;r; sol men&#252;de yaln&#305;zca ayr&#305; ekran gerektiren yetkiler g&#246;r&#252;n&#252;r.</span></div>
         <div class="permission-grid permission-general-grid">
-            <label class="permission-option option-blue"><input type="checkbox" name="evrak_yonetimi"><span><b>Evrak y&#246;netim ekran&#305;</b><small>Y&#246;netim merkezinde izin talepleri ekran&#305;na giri&#351; sa&#287;lar.</small></span></label>
+            <label class="permission-option option-purple"><input type="checkbox" name="tam_yonetim_yetkisi" data-management-all="1"><span><b>T&#252;m y&#246;netim yetkisi</b><small>Y&#246;netim merkezindeki t&#252;m ekranlar&#305; tek i&#351;aretle a&#231;ar.</small></span></label>
+            <label class="permission-option option-blue"><input type="checkbox" name="evrak_yonetimi"><span><b>&#304;zin talepleri y&#246;netimi</b><small>Y&#246;netim merkezindeki &#304;zin Talepleri ekran&#305;n&#305; ve evrak i&#351;lem yetkilerini a&#231;ar.</small></span></label>
             <label class="permission-option option-blue"><input type="checkbox" name="tum_izinleri_goruntuleme"><span><b>T&#252;m izinleri g&#246;r ve ara</b><small>Personel tipi ayr&#305;m&#305; olmadan t&#252;m izin evraklar&#305;n&#305; listeler.</small></span></label>
-            <label class="permission-option option-teal"><input type="checkbox" name="birim_ve_vekalet_yonetimi"><span><b>Birim imzac&#305; / vekalet y&#246;netimi</b><small>G&#246;rev birimi imzac&#305;lar&#305; ve vekalet kay&#305;tlar&#305;n&#305; y&#246;netir.</small></span></label>
+            <label class="permission-option option-teal"><input type="checkbox" name="personel_veri_yonetimi"><span><b>Personel veri y&#246;netimi</b><small>Sol men&#252;de Personel Veri Y&#246;netimi ekran&#305;n&#305; a&#231;ar.</small></span></label>
+            <label class="permission-option option-teal"><input type="checkbox" name="gorev_birimi_yonetimi"><span><b>G&#246;rev birimi y&#246;netimi</b><small>Sol men&#252;de G&#246;rev Birimi Y&#246;netimi ekran&#305;n&#305; a&#231;ar.</small></span></label>
+            <label class="permission-option option-teal"><input type="checkbox" name="vekalet_yonetimi"><span><b>Vekalet d&#252;zenleme</b><small>Sol men&#252;de Vekalet D&#252;zenleme ekran&#305;n&#305; a&#231;ar.</small></span></label>
         </div>
 
         <div class="permission-heading"><strong>Personel Tipi Bazl&#305; Yetkiler</strong><span>Memur, &#304;&#351;&#231;i ve &#350;irket izinleri birbirinden ba&#287;&#305;ms&#305;zd&#305;r.</span></div>
@@ -82,7 +85,9 @@
         <tr>
             <td><strong>{{ yetki.kullanici.get_full_name|default:yetki.kullanici.username }}</strong><br><small>{{ yetki.kullanici.username }}</small></td>
             <td class="permission-chips">
-                {% if yetki.evrak_yonetimi %}<span class="chip chip-blue">Evrak y&#246;netimi</span>{% endif %}
+                {% if yetki.evrak_yonetimi %}<span class="chip chip-blue">&#304;zin talepleri</span>{% endif %}
+                {% if yetki.tam_yonetim_yetkisi %}<span class="chip chip-purple">T&#252;m y&#246;netim</span>{% endif %}
+                {% if yetki.personel_veri_yonetimi %}<span class="chip chip-teal">Personel veri</span>{% endif %}
                 {% if yetki.tum_izinleri_goruntuleme %}<span class="chip chip-blue">T&#252;m izinler</span>{% endif %}
                 {% if yetki.memur_kontrol_eden %}<span class="chip chip-green">Memur kontrol</span>{% endif %}
                 {% if yetki.isci_kontrol_eden %}<span class="chip chip-green">&#304;&#351;&#231;i kontrol</span>{% endif %}
@@ -91,7 +96,8 @@
                 {% if yetki.sahibine_iade %}<span class="chip chip-red">Sahibine iade</span>{% endif %}
                 {% if yetki.izin_silme %}<span class="chip chip-red">&#304;zin silme</span>{% endif %}
                 {% if yetki.tamamlanan_izin_bildirimi %}<span class="chip chip-purple">Bildirimler</span>{% endif %}
-                {% if yetki.birim_ve_vekalet_yonetimi %}<span class="chip chip-teal">Birim / vekalet</span>{% endif %}
+                {% if yetki.gorev_birimi_yonetimi or yetki.birim_ve_vekalet_yonetimi %}<span class="chip chip-teal">G&#246;rev birimi</span>{% endif %}
+                {% if yetki.vekalet_yonetimi or yetki.birim_ve_vekalet_yonetimi %}<span class="chip chip-teal">Vekalet</span>{% endif %}
                 {% if yetki.memur_izin_goruntuleme or yetki.memur_izin_arama or yetki.memur_evrak_geri_cekme or yetki.memur_sahibine_iade or yetki.memur_izin_silme or yetki.memur_tamamlanan_izin_bildirimi %}<span class="chip chip-blue">Memur detayl&#305;</span>{% endif %}
                 {% if yetki.isci_izin_goruntuleme or yetki.isci_izin_arama or yetki.isci_evrak_geri_cekme or yetki.isci_sahibine_iade or yetki.isci_izin_silme or yetki.isci_tamamlanan_izin_bildirimi %}<span class="chip chip-amber">&#304;&#351;&#231;i detayl&#305;</span>{% endif %}
                 {% if yetki.sirket_izin_goruntuleme or yetki.sirket_izin_arama or yetki.sirket_evrak_geri_cekme or yetki.sirket_sahibine_iade or yetki.sirket_izin_silme or yetki.sirket_tamamlanan_izin_bildirimi %}<span class="chip chip-purple">&#350;irket detayl&#305;</span>{% endif %}
@@ -100,7 +106,7 @@
             <td>{% if yetki.aktif_mi %}<span class="pill">Aktif</span>{% else %}<span class="status status-reddedildi">Pasif</span>{% endif %}</td>
             <td>{{ yetki.aciklama|default:"-" }}</td>
             <td class="row-actions">
-                <button type="button" class="outline-action edit-permission" data-user-id="{{ yetki.kullanici_id }}" data-user-label="{{ yetki.kullanici.get_full_name|default:yetki.kullanici.username }} ({{ yetki.kullanici.username }})">D&#252;zenle</button>
+                <button type="button" class="edit-action small edit-permission" data-user-id="{{ yetki.kullanici_id }}" data-user-label="{{ yetki.kullanici.get_full_name|default:yetki.kullanici.username }} ({{ yetki.kullanici.username }})" data-permissions="{{ yetki.form_yetkileri_json|escape }}">D&#252;zenle</button>
                 {% if yetki.aktif_mi %}<form method="post">{% csrf_token %}<input type="hidden" name="islem" value="yetki_pasif"><input type="hidden" name="yetki_id" value="{{ yetki.id }}"><button class="danger-action small">T&#252;m&#252;n&#252; Kald&#305;r</button></form>{% endif %}
                 <form method="post" class="delete-permission-form">{% csrf_token %}<input type="hidden" name="islem" value="yetki_sil"><input type="hidden" name="yetki_id" value="{{ yetki.id }}"><button class="danger-action small">Sil</button></form>
             </td>
@@ -118,19 +124,25 @@
   const box = form.querySelector('.picker-results');
   const note = form.querySelector('.permission-note');
   const state = document.getElementById('selected-user-state');
-  const fields = ['evrak_yonetimi','tum_izinleri_goruntuleme','evrak_geri_cekme','sahibine_iade','izin_silme','tamamlanan_izin_bildirimi','birim_ve_vekalet_yonetimi','memur_izin_goruntuleme','isci_izin_goruntuleme','sirket_izin_goruntuleme','memur_izin_arama','isci_izin_arama','sirket_izin_arama','memur_kontrol_eden','isci_kontrol_eden','sirket_kontrol_eden','memur_evrak_geri_cekme','isci_evrak_geri_cekme','sirket_evrak_geri_cekme','memur_sahibine_iade','isci_sahibine_iade','sirket_sahibine_iade','memur_izin_silme','isci_izin_silme','sirket_izin_silme','memur_tamamlanan_izin_bildirimi','isci_tamamlanan_izin_bildirimi','sirket_tamamlanan_izin_bildirimi'];
+  const fields = ['tam_yonetim_yetkisi','evrak_yonetimi','tum_izinleri_goruntuleme','evrak_geri_cekme','sahibine_iade','izin_silme','tamamlanan_izin_bildirimi','personel_veri_yonetimi','gorev_birimi_yonetimi','vekalet_yonetimi','memur_izin_goruntuleme','isci_izin_goruntuleme','sirket_izin_goruntuleme','memur_izin_arama','isci_izin_arama','sirket_izin_arama','memur_kontrol_eden','isci_kontrol_eden','sirket_kontrol_eden','memur_evrak_geri_cekme','isci_evrak_geri_cekme','sirket_evrak_geri_cekme','memur_sahibine_iade','isci_sahibine_iade','sirket_sahibine_iade','memur_izin_silme','isci_izin_silme','sirket_izin_silme','memur_tamamlanan_izin_bildirimi','isci_tamamlanan_izin_bildirimi','sirket_tamamlanan_izin_bildirimi'];
   const displayLabel = (user) => {
     const full = (user.full_name || '').trim();
     return full ? `${full} (${user.username})` : user.username;
   };
-  const reset = () => { fields.forEach(name => form.querySelector(`[name="${name}"]`).checked = false); note.value=''; state.textContent='\u00d6nce kullan\u0131c\u0131 se\u00e7in'; };
+  const setPermissionChecks = (permissions) => {
+    fields.forEach(name => {
+      const checkbox = form.querySelector(`[name="${name}"]`);
+      if(checkbox) checkbox.checked = !!(permissions && permissions[name]);
+    });
+  };
+  const reset = () => { setPermissionChecks({}); note.value=''; state.textContent='\u00d6nce kullan\u0131c\u0131 se\u00e7in'; };
   async function loadPermission(userId, label) {
     hidden.value = userId; input.value = label; box.classList.remove('open');
     const response = await fetch("{% url 'kullanici_yetkisi_detay' %}?kullanici=" + encodeURIComponent(userId));
     if (!response.ok) return;
     const data = await response.json();
     note.value = data.aciklama || '';
-    fields.forEach(name => form.querySelector(`[name="${name}"]`).checked = !!data.yetkiler[name]);
+    setPermissionChecks(data.yetkiler);
     state.textContent = data.kullanici.label + ' i\u00e7in yetkiler d\u00fczenleniyor';
   }
   async function search(forceList=false) {
@@ -156,8 +168,25 @@
   input.addEventListener('input', () => { hidden.value=''; reset(); search(); });
   form.querySelector('.search-btn').addEventListener('click', () => search(true));
   form.querySelector('.clear-btn').addEventListener('click', () => { hidden.value=''; input.value=''; box.classList.remove('open'); reset(); });
-  form.querySelector('.clear-permissions').addEventListener('click', () => fields.forEach(name => form.querySelector(`[name="${name}"]`).checked=false));
-  document.querySelectorAll('.edit-permission').forEach(button => button.addEventListener('click', () => { window.scrollTo({top:0, behavior:'smooth'}); loadPermission(button.dataset.userId, button.dataset.userLabel); }));
+  form.querySelector('.clear-permissions').addEventListener('click', () => setPermissionChecks({}));
+  const managementAll = form.querySelector('[name="tam_yonetim_yetkisi"]');
+  if(managementAll){
+    managementAll.addEventListener('change', () => {
+      if(!managementAll.checked) return;
+      ['evrak_yonetimi','tum_izinleri_goruntuleme','personel_veri_yonetimi','gorev_birimi_yonetimi','vekalet_yonetimi'].forEach(name => {
+        const checkbox = form.querySelector(`[name="${name}"]`);
+        if(checkbox) checkbox.checked = true;
+      });
+    });
+  }
+  document.querySelectorAll('.edit-permission').forEach(button => button.addEventListener('click', () => {
+    window.scrollTo({top:0, behavior:'smooth'});
+    hidden.value = button.dataset.userId;
+    input.value = button.dataset.userLabel;
+    state.textContent = button.dataset.userLabel + ' i\u00e7in yetkiler d\u00fczenleniyor';
+    try { setPermissionChecks(JSON.parse(button.dataset.permissions || '{}')); } catch(error) { setPermissionChecks({}); }
+    loadPermission(button.dataset.userId, button.dataset.userLabel);
+  }));
   document.querySelectorAll('.delete-permission-form').forEach(deleteForm => deleteForm.addEventListener('submit', (event) => {
     if(!window.confirm('Bu kullanıcının yetki kaydı tamamen silinsin mi?')) event.preventDefault();
   }));
