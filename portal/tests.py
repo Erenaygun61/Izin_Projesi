@@ -37,7 +37,7 @@ class OzlukAktarimTests(TestCase):
             bitis_tarihi=date(2026, 8, 7),
             kullanilan_gun=Decimal("5.00"),
             personel_tipi="MEMUR",
-            izin_turu=SimpleNamespace(yillik_izin_mi=True),
+            izin_turu=SimpleNamespace(yillik_izin_mi=False),
             ait_oldugu_yil="2026",
             evrak_no="2026-TEST",
             save=MagicMock(),
@@ -88,7 +88,7 @@ class IzinAramaGorunurlukTests(TestCase):
     def test_teklif_parafindan_sonra_yonetici_arama_listesinde_gorur(self):
         olusturan = User.objects.create_user(username="olusturan")
         kontrol_eden = User.objects.create_user(username="kontrol")
-        yonetici = User.objects.create_user(username="yonetici", is_staff=True)
+        yonetici = User.objects.create_superuser(username="yonetici")
         evrak_yetkilisi = User.objects.create_user(username="evrak_yetkilisi")
         YonetimYetkisi.objects.create(kullanici=evrak_yetkilisi, aktif_mi=True, evrak_yonetimi=True)
         talep = IzinTalebi.objects.create(
@@ -119,6 +119,7 @@ class IzinAramaGorunurlukTests(TestCase):
             last_name="YAMİÇ",
         )
         arayan = User.objects.create_user(username="arama_yetkilisi", is_staff=True)
+        YonetimYetkisi.objects.create(kullanici=arayan, evrak_yonetimi=True)
         PortalPersonel.objects.create(
             personel_tipi="MEMUR",
             source_personel_id=184,
@@ -172,7 +173,8 @@ class IzinAramaGorunurlukTests(TestCase):
         )
 
         self.client.force_login(imzaci)
-        response = self.client.get(reverse("evrak_onizleme", args=[talep.id]))
+        with patch("portal.views.talep_aktif_imzacilari", return_value=[("Amir", imzaci)]):
+            response = self.client.get(reverse("evrak_onizleme", args=[talep.id]))
 
         self.assertRedirects(response, reverse("evrak_paraf", args=[talep.id]), fetch_redirect_response=False)
 

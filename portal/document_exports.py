@@ -19,6 +19,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image as PdfImage
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from .models import _ad_soyad_bicimi
+from .evrak_verisi import belge_verileri
 
 
 STATIC_PORTAL = Path(__file__).resolve().parent.parent / "static" / "portal"
@@ -89,13 +90,9 @@ def _kullanici_adi(user):
     return _ad_soyad_bicimi(user.get_full_name().strip() or user.username)
 
 
-def _kullanici_parafladi_mi(talep, user):
-    if not talep or not user:
-        return False
-    return talep.islem_gecmisi.filter(
-        kullanici=user,
-        islem__in=["IMZA", "KONTROL_PARAFI", "ONAY"],
-    ).exists()
+def _kullanici_parafladi_mi(talep, user, rol=None):
+    from .imza_durumu import paraf_verildi_mi
+    return paraf_verildi_mi(talep, user, rol)
 
 
 def _izin_aciklamasi(talep):
@@ -141,6 +138,7 @@ def _p(value, style):
 
 
 def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama, islak_imza=False):
+    talep, personel, imzacilar = belge_verileri(talep, personel, imzacilar)
     cep_telefonu = getattr(talep, "cep_telefonu", "") or getattr(personel, "cep_tel", "")
     """İzin isteği onayını tek sayfalık, indirilebilir PDF olarak üretir."""
     regular, bold = _fontlar()
@@ -156,7 +154,7 @@ def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama, islak_imza=Fals
         rightMargin=15 * mm,
         topMargin=11 * mm,
         bottomMargin=12 * mm,
-        title=f"İzin İsteği - {talep.evrak_no}",
+        title=f"İzin İsteği - {talep.referans_no}",
         author="TİSKİ İzin Portalı",
     )
     styles = getSampleStyleSheet()
@@ -203,11 +201,15 @@ def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama, islak_imza=Fals
     story += [antet, Spacer(1, 3 * mm)]
 
     # Tarih/sayı soldadır; birim adı antette tekrarlanmaz.
-    evrak_sayisi = escape(_metin(talep.evrak_no))
-    if not islak_imza:
-        evrak_sayisi = f"E.{evrak_sayisi}"
+    if talep.evrak_no:
+        evrak_sayisi = escape(_metin(talep.evrak_no))
+        if not islak_imza:
+            evrak_sayisi = f"E.{evrak_sayisi}"
+        numara_satiri = f"<b>Evrak Tarih ve Sayısı:</b> {_tarih(talep.kurum_kayit_tarihi)} - {evrak_sayisi}"
+    else:
+        numara_satiri = f"<b>Takip No:</b> {escape(talep.takip_no)}"
     story.append(Paragraph(
-        f"<b>Evrak Tarih ve Sayısı:</b> {_tarih(talep.kurum_kayit_tarihi)} - {evrak_sayisi}",
+        numara_satiri,
         ParagraphStyle("doc_number", parent=cell_bold, alignment=TA_LEFT, fontSize=9.4),
     ))
     story += [Spacer(1, 2 * mm), Paragraph("İZİN İSTEĞİ ONAYI", subtitle), Spacer(1, 3 * mm)]
@@ -367,6 +369,7 @@ def izin_pdf_olustur(talep, personel, imzacilar, goreve_baslama, islak_imza=Fals
 
 
 def izin_excel_olustur(talep, personel, imzacilar, goreve_baslama):
+    talep, personel, imzacilar = belge_verileri(talep, personel, imzacilar)
     """Aynı evrak verilerini düzenlenebilir Excel dosyası olarak üretir."""
     cep_telefonu = getattr(talep, "cep_telefonu", "") or getattr(personel, "cep_tel", "")
     wb = Workbook()
@@ -449,7 +452,8 @@ def izin_excel_olustur(talep, personel, imzacilar, goreve_baslama):
     ws["A1"].alignment = center
     ws["D1"].alignment = center
     ws.row_dimensions[1].height = 63
-    merge_write("A3:D3", f"Evrak Tarih ve Sayısı: {_tarih(talep.kurum_kayit_tarihi)} - E.{talep.evrak_no}", font=body_bold, alignment=left, cell_border=no_border)
+    numara_satiri = f"Evrak Tarih ve Sayısı: {_tarih(talep.kurum_kayit_tarihi)} - E.{talep.evrak_no}" if talep.evrak_no else f"Takip No: {talep.takip_no}"
+    merge_write("A3:D3", numara_satiri, font=body_bold, alignment=left, cell_border=no_border)
     merge_write("A4:D4", "İZİN İSTEĞİ ONAYI", font=heading, alignment=center, cell_border=no_border)
     ws.row_dimensions[4].height = 26
 
@@ -516,7 +520,7 @@ def izin_excel_olustur(talep, personel, imzacilar, goreve_baslama):
             rol, user = imzacilar[0]
             teklif_eden = (
                 "Teklif Eden\n\n"
-                f"{'e-Paraflıdır' if _kullanici_parafladi_mi(talep, user) else 'Paraf Bekliyor'}\n"
+                f"{'e-Paraflıdır' if _kullanici_parafladi_mi(talep, user, rol) else 'Paraf Bekliyor'}\n"
                 f"{_kullanici_adi(user)}\n{rol}"
             )
             merge_write(f"C{sign_start}:D{sign_end}", teklif_eden, font=body_bold, alignment=center, cell_border=outer_border)

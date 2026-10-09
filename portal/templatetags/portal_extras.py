@@ -54,9 +54,11 @@ def belge_gorevi(personel):
 
 @register.filter
 def paraf_verdi_mi(talep, user):
-    if not talep or not user:
-        return False
-    return talep.islem_gecmisi.filter(
-        kullanici=user,
-        islem__in=["IMZA", "KONTROL_PARAFI", "ONAY"],
-    ).exists()
+    from portal.imza_durumu import paraf_verildi_mi
+    return paraf_verildi_mi(talep, user)
+
+
+@register.simple_tag
+def makam_parafli_mi(talep, user, rol):
+    from portal.imza_durumu import paraf_verildi_mi
+    return paraf_verildi_mi(talep, user, rol)

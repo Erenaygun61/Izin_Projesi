@@ -1,7 +1,11 @@
 from django.urls import path
 from . import views
+from . import personel_aktarim
 
 urlpatterns = [
+    path("yonetim/personel-verileri/aktarim/baslat/", personel_aktarim.personel_aktarim_baslat, name="personel_aktarim_baslat"),
+    path("yonetim/personel-verileri/aktarim/<uuid:aktarim_id>/", personel_aktarim.personel_aktarim_durum, name="personel_aktarim_durum"),
+    path("yonetim/personel-verileri/aktarim/<uuid:aktarim_id>/adim/", personel_aktarim.personel_aktarim_adim, name="personel_aktarim_adim"),
     path("", views.dashboard, name="dashboard"),
     path("izin/", views.izin_menu, name="izin_menu"),
     path("izin-ara/", views.izin_ara, name="izin_ara"),

@@ -5,7 +5,7 @@ from .models import ImzaciVekaleti, YonetimYetkisi
 
 
 def _kullanici_yetkisi(user):
-    if not user or not user.is_authenticated:
+    if not user or not user.is_authenticated or not user.is_active:
         return None
     try:
         yetki = user.portal_yetki
@@ -24,7 +24,7 @@ def _yonetim_nav_items(request):
 
     yetki = _kullanici_yetkisi(user)
 
-    if user.is_superuser or user.is_staff or (yetki and yetki.tam_yonetim_yetkisi):
+    if user.is_active and (user.is_superuser or (yetki and yetki.tam_yonetim_yetkisi)):
         return [{
             "label": "Yönetim",
             "href": reverse("yonetim"),

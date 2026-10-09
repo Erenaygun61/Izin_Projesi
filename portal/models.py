@@ -1,6 +1,7 @@
 ﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
+import uuid
 
 
 def _turkce_baslik(metin):
@@ -173,6 +174,7 @@ class PortalPersonel(models.Model):
     ise_baslama_tarihi = models.DateField(blank=True, null=True)
     ozluk_senkron_zamani = models.DateTimeField(default=timezone.now)
     yerel_guncelleme_zamani = models.DateTimeField(auto_now=True)
+    kullanici = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="izin_portal_personelleri")
 
     class Meta:
         ordering = ["personel_tipi", "sicil_no"]
@@ -190,6 +192,18 @@ class PortalPersonel(models.Model):
     @property
     def unvani(self):
         return _turkce_baslik(self.unvan or self.gorevi)
+
+
+class PersonelAktarim(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kullanici = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="personel_aktarimlari")
+    kayitlar = models.JSONField(default=list)
+    islenen = models.PositiveIntegerField(default=0)
+    basarili = models.PositiveIntegerField(default=0)
+    hatalar = models.JSONField(default=list)
+    tamamlandi = models.BooleanField(default=False)
+    olusturma_zamani = models.DateTimeField(auto_now_add=True)
+    guncelleme_zamani = models.DateTimeField(auto_now=True)
 
 
 class PortalIzinHakki(models.Model):
@@ -244,6 +258,7 @@ class IzinTuru(models.Model):
 
 
 class HakEdilenIzin(models.Model):
+    izin_turu = models.ForeignKey(IzinTuru, on_delete=models.DO_NOTHING, null=True, blank=True, db_constraint=False)
     personel = models.ForeignKey(Personel, on_delete=models.DO_NOTHING, related_name="haklar", null=True, blank=True, db_constraint=False)
     isci_personel = models.ForeignKey(IsciPersonel, db_column="isci_personel_id", on_delete=models.DO_NOTHING, null=True, blank=True, related_name="+", db_constraint=False)
     sirket_personel = models.ForeignKey(SirketPersonel, db_column="sirket_personel_id", on_delete=models.DO_NOTHING, null=True, blank=True, related_name="+", db_constraint=False)
@@ -291,6 +306,7 @@ class KullanilanIzin(models.Model):
 
 
 class IzinTalebi(models.Model):
+    evrak_verisi = models.JSONField(default=dict, blank=True, editable=False)
     PERSONEL_TIPI_CHOICES = [
         ("MEMUR", "Memur"),
         ("ISCI", "İşçi"),
@@ -352,6 +368,17 @@ class IzinTalebi(models.Model):
 
     def __str__(self):
         return f"{self.personel_id} / {self.izin_turu} / {self.kullanilan_gun} gün"
+
+    @property
+    def takip_no(self):
+        if not self.pk or not self.olusturma_zamani:
+            return ""
+        yil = timezone.localtime(self.olusturma_zamani).year
+        return f"TALEP-{yil}-{self.pk}"
+
+    @property
+    def referans_no(self):
+        return self.evrak_no or self.takip_no
 
 
 class EvrakNoSayaci(models.Model):
@@ -527,11 +554,15 @@ class YonetimYetkisi(models.Model):
         verbose_name_plural = "Y\u00f6netim Yetkileri"
 
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        kontrol_alanlari = ("memur_kontrol_eden", "isci_kontrol_eden", "sirket_kontrol_eden")
-        for alan in kontrol_alanlari:
-            if getattr(self, alan, False):
-                YonetimYetkisi.objects.exclude(pk=self.pk).filter(**{alan: True}).update(**{alan: False})
+        from django.db import transaction
+        with transaction.atomic():
+            self.kullanici.__class__.objects.select_for_update().order_by("pk").first()
+            super().save(*args, **kwargs)
+            alanlar = kwargs.get("update_fields")
+            if self.aktif_mi and self.kullanici.is_active:
+                for alan in ("memur_kontrol_eden", "isci_kontrol_eden", "sirket_kontrol_eden"):
+                    if getattr(self, alan, False) and (alanlar is None or alan in alanlar or "aktif_mi" in alanlar):
+                        YonetimYetkisi.objects.exclude(pk=self.pk).filter(**{alan: True}).update(**{alan: False})
 
     def __str__(self):
         return f"{self.kullanici} / {'Aktif' if self.aktif_mi else 'Pasif'}"

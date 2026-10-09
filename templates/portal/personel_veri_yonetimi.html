@@ -1,4 +1,5 @@
 {% extends "portal/base.html" %}
+{% load static %}
 {% block title %}Yerel Personel Kartları{% endblock %}
 {% block page_title %}Yerel Personel Kartları{% endblock %}
 {% block content %}
@@ -43,7 +44,7 @@
         <label>Görev Birimi<input name="gorev_birimi" value="{{ duzenlenecek.gorev_birimi }}"></label>
         <label>Alt Birimi<input name="alt_birimi" value="{{ duzenlenecek.alt_birimi }}"></label>
         <label>Cep Telefonu<input name="cep_tel" value="{{ duzenlenecek.cep_tel }}"></label>
-        <label>Durum<input name="durum" value="{{ duzenlenecek.durum }}"></label>
+        <label>Durum<input value="{{ duzenlenecek.durum }}" readonly></label>
         <div class="local-edit-actions"><button class="green-action" type="submit">Yerel Bilgileri Kaydet</button></div>
     </form>
 </section>
@@ -62,17 +63,34 @@
         <button class="search-btn-wide" type="submit">Ara</button>
         <a class="clear-search-action" href="{% url 'personel_veri_yonetimi' %}?tip={{ tip }}">Temizle</a>
     </form>
-    <form method="post">{% csrf_token %}
+    <form method="post" data-personel-aktarim>{% csrf_token %}
         <input type="hidden" name="tip" value="{{ tip }}">
         <button class="green-action" type="submit" name="islem" value="tumunu_aktar">{{ tip_etiket }} Personelini Aktar</button>
     </form>
-    <form method="post">{% csrf_token %}
+    <form method="post" data-personel-aktarim>{% csrf_token %}
         <input type="hidden" name="tip" value="{{ tip }}">
         <button class="blue-action" type="submit" name="islem" value="tum_tipleri_aktar">Tüm Tipleri Aktar</button>
     </form>
 </section>
 
-<form method="post" class="panel local-personnel-list">{% csrf_token %}
+<section class="panel personnel-transfer" id="personnel-transfer" hidden
+    data-start-url="{% url 'personel_aktarim_baslat' %}"
+    data-job-base="{% url 'personel_aktarim_baslat' %}"
+    data-last-id="{{ son_aktarim.id|default:'' }}">
+    <div class="transfer-head"><strong id="transfer-status">Personel Aktar&#305;m&#305;</strong><b id="transfer-percent">%0</b></div>
+    <progress id="transfer-progress" max="100" value="0" aria-label="Personel aktar&#305;m&#305;"></progress>
+    <div class="transfer-meta"><span id="transfer-count"></span><span id="transfer-time"></span></div>
+    <p id="transfer-message" role="status" aria-live="polite"></p>
+    <ul id="transfer-errors" hidden></ul>
+    <div class="transfer-actions">
+        <button type="button" class="outline-link" id="transfer-pause" hidden>Duraklat</button>
+        <button type="button" class="green-action" id="transfer-resume" hidden>Devam Et</button>
+        <button type="button" class="blue-action" id="transfer-retry" hidden>Hatal&#305; Kay&#305;tlar&#305; Yeniden Dene</button>
+        <button type="button" class="outline-link" id="transfer-refresh" hidden>Listeyi Yenile</button>
+    </div>
+</section>
+
+<form method="post" class="panel local-personnel-list" data-personel-aktarim>{% csrf_token %}
     <input type="hidden" name="tip" value="{{ tip }}">
     <div class="panel-title">
         <div>
@@ -105,7 +123,7 @@
                     <td><strong>{{ satir.ad_soyad }}</strong></td>
                     <td>{{ satir.unvan|default:"-" }}</td>
                     <td>{{ satir.birim|default:"-" }}</td>
-                    <td>{% if satir.portal %}<span class="local-pill">Portal kartı var</span>{% else %}<span class="source-pill">Henüz aktarılmadı</span>{% endif %}</td>
+                    <td><span class="{% if satir.kaynak.durum == 'Aktif' %}local-pill{% else %}source-pill{% endif %}">{{ satir.kaynak.durum }}</span><br>{% if satir.portal %}<small>Portal kartı var</small>{% else %}<small>Henüz aktarılmadı</small>{% endif %}</td>
                     <td>{% if satir.portal %}{{ satir.portal.ozluk_senkron_zamani|date:"d.m.Y H:i" }}{% else %}-{% endif %}</td>
                     <td><a class="row-edit" href="?tip={{ satir.tip }}&duzenle={{ satir.kaynak.id }}">Düzenle</a></td>
                 </tr>
@@ -118,8 +136,9 @@
 </form>
 <script>
 (() => {
-  document.querySelector('.select-all')?.addEventListener('change', function(){
-      document.querySelectorAll('.person-check').forEach(function(item){ item.checked = this.checked; }.bind(this));
+  document.addEventListener('change', function(event){
+      if(!event.target.matches('.select-all')) return;
+      document.querySelectorAll('.person-check').forEach(item => { item.checked = event.target.checked; });
   });
 
   const form = document.querySelector('.local-search');
@@ -130,6 +149,7 @@
   const pickerButton = form.querySelector('.local-person-picker-btn');
   let page = 1;
   let timer = null;
+  let searchController = null;
 
   const escapeHtml = (value) => String(value || '').replace(/[&<>"]/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const modal = document.createElement('div');
@@ -144,6 +164,7 @@
   const next = modal.querySelector('.picker-next');
 
   function closeModal(){
+    searchController?.abort();
     modal.classList.remove('open');
     modalResults.innerHTML = '';
   }
@@ -159,11 +180,15 @@
     return `<button type="button" class="picker-option local-person-option" data-id="${escapeHtml(item.id)}" data-tip="${escapeHtml(item.tip)}" data-label="${escapeHtml(item.label)}"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.tip_etiket || '')}${item.username ? ' · ' + escapeHtml(item.username) : ''}</small><small>${escapeHtml(item.birim || '')}</small></button>`;
   }
   async function search(pageNumber){
+    searchController?.abort();
+    const controller = new AbortController();
+    searchController = controller;
     page = pageNumber || page || 1;
     modalResults.innerHTML = '<div class="picker-loading">Aranıyor...</div>';
     updatePager({page, pages: 1, total: 0, has_previous: false, has_next: false});
     const params = new URLSearchParams({q: modalInput.value.trim(), page});
-    const response = await fetch("{% url 'personel_veri_personel_ara' %}?" + params.toString());
+    try {
+    const response = await fetch("{% url 'personel_veri_personel_ara' %}?" + params.toString(), {signal: controller.signal});
     if(!response.ok){
       modalResults.innerHTML = '<div class="no-result">Arama yapılamadı.</div>';
       return;
@@ -181,6 +206,9 @@
         form.submit();
       });
     });
+    } catch(error) {
+      if(error.name !== 'AbortError') modalResults.innerHTML = '<div class="no-result">Arama tamamlanamad&#305;. Yeniden deneyin.</div>';
+    }
   }
   function openModal(){
     page = 1;
@@ -204,4 +232,5 @@
   qInput.addEventListener('input', () => { pickedInput.value = ''; });
 })();
 </script>
+<script src="{% static 'portal/personel_aktarim.js' %}?v=20261002" defer></script>
 {% endblock %}

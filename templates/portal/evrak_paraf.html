@@ -13,7 +13,7 @@
 {% endif %}
 <section class="paraf-layout {% if indir %}print-mode{% endif %}">
     <div class="evrak-viewer">
-        <div class="viewer-bar"><span>&#9776;</span><strong>&#304;zin &#304;ste&#287;i {{ talep.evrak_no }}</strong><em>1 / 1</em><a class="viewer-download" href="{% url 'evrak_indir' talep.id %}?format=pdf">PDF &#304;ndir</a><a class="viewer-print" href="{% url 'evrak_indir' talep.id %}?format=pdf&amp;inline=1" target="_blank" rel="opener" title="PDF belgesini yazd&#305;r"><span aria-hidden="true">&#128424;</span> Yazd&#305;r</a></div>
+        <div class="viewer-bar"><span>&#9776;</span><strong>&#304;zin &#304;ste&#287;i {{ talep.referans_no }}</strong><em>1 / 1</em><a class="viewer-download" href="{% url 'evrak_indir' talep.id %}?format=pdf">PDF &#304;ndir</a><a class="viewer-print" href="{% url 'evrak_indir' talep.id %}?format=pdf&amp;inline=1" target="_blank" rel="opener" title="PDF belgesini yazd&#305;r"><span aria-hidden="true">&#128424;</span> Yazd&#305;r</a></div>
         <div class="paper-page">
             <div class="doc-antet">
                 <img class="doc-logo left" src="/static/portal/trabzon-buyuksehir-logo.jpg" alt="Trabzon B&#252;y&#252;k&#351;ehir Belediyesi">
@@ -25,7 +25,7 @@
                 <img class="doc-logo right" src="/static/portal/logo1.png" alt="T&#304;SK&#304;">
             </div>
             <div class="doc-accent-line" aria-hidden="true"><span></span></div>
-            <div class="doc-number">Evrak Tarih ve Say&#305;s&#305;: {{ talep.kurum_kayit_tarihi|date:"d/m/Y" }} - E.{{ talep.evrak_no }}</div>
+            <div class="doc-number">{% if talep.evrak_no %}Evrak Tarih ve Say&#305;s&#305;: {{ talep.kurum_kayit_tarihi|date:"d/m/Y" }} - E.{{ talep.evrak_no }}{% else %}Takip No: {{ talep.takip_no }}{% endif %}</div>
             <h3 class="doc-subtitle">&#304;Z&#304;N &#304;STE&#286;&#304; ONAYI</h3>
             <table class="izin-table">
                 <tr><th>Birimi</th><td colspan="3" class="unit-value"><strong>{{ personel.gorev_birimi }}</strong>{% if personel.alt_birimi %}<span class="unit-divider"></span><span>{{ personel.alt_birimi }}</span>{% endif %}</td></tr>
@@ -42,14 +42,14 @@
             <div class="signature-grid request-signatures">
                 <div class="signature-box"><span class="applicant-label">&#304;zin Talebinde Bulunan</span><span class="signature-gap"></span><span>{% if talep|paraf_verdi_mi:talep.kullanici %}e-Parafl&#305;d&#305;r{% else %}Paraf Bekliyor{% endif %}</span><span class="signature-name">{{ personel.ad_soyad|ad_soyad_yazimi }}</span><em>{{ personel|belge_gorevi }}</em></div>
                 {% if imzacilar|length == 1 %}
-                    {% for rol,user in imzacilar %}<div class="signature-box"><span class="offer-label">Onaylayan</span><span class="signature-gap"></span><span>{% if talep.durum == "ONAYLANDI" or talep.imza_tamamlanma_tarihi %}e-&#304;mzal&#305;d&#305;r{% else %}&#304;mza Bekliyor{% endif %}</span><span class="signature-name">{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</span><em>{{ rol }}</em></div>{% endfor %}
+                    {% for rol,user in imzacilar %}<div class="signature-box"><span class="offer-label">Onaylayan</span><span class="signature-gap"></span><span>{% if talep.durum == "ONAYLANDI" or talep.imza_tamamlanma_tarihi %}e-&#304;mzal&#305;d&#305;r{% else %}&#304;mza Bekliyor{% endif %}</span><span class="signature-name">{% firstof user.get_full_name user.username "Tanımlanmamış" as imzaci_adi %}{{ imzaci_adi|ad_soyad_yazimi }}</span><em>{{ rol }}</em></div>{% endfor %}
                 {% else %}
                 {% for rol,user in imzacilar %}{% if forloop.first and not forloop.last %}
-                    <div class="signature-box"><span class="offer-label">Teklif Eden</span><span class="signature-gap"></span><span>{% if talep|paraf_verdi_mi:user %}e-Parafl&#305;d&#305;r{% else %}Paraf Bekliyor{% endif %}</span><span class="signature-name">{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</span><em>{{ rol }}</em></div>
+                    <div class="signature-box"><span class="offer-label">Teklif Eden</span><span class="signature-gap"></span><span>{% makam_parafli_mi talep user rol as makam_parafli %}{% if makam_parafli %}e-Parafl&#305;d&#305;r{% else %}Paraf Bekliyor{% endif %}</span><span class="signature-name">{% firstof user.get_full_name user.username "Tanımlanmamış" as imzaci_adi %}{{ imzaci_adi|ad_soyad_yazimi }}</span><em>{{ rol }}</em></div>
                 {% endif %}{% endfor %}
                 {% endif %}
             </div>
-            {% if imzacilar|length != 1 %}{% for rol,user in imzacilar %}{% if forloop.last %}<div class="approval-box"><strong>Onaylayan</strong><span class="signature-gap"></span><span>{% if talep.durum == "ONAYLANDI" or talep.imza_tamamlanma_tarihi %}e-&#304;mzal&#305;d&#305;r{% else %}&#304;mza Bekliyor{% endif %}</span><b>{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</b><em>{{ rol }}</em></div>{% endif %}{% empty %}<div class="approval-box"><strong>Onaylayan</strong><em>Birimi i&#231;in imzac&#305; tan&#305;mlanmam&#305;&#351;.</em></div>{% endfor %}{% endif %}
+            {% if imzacilar|length != 1 %}{% for rol,user in imzacilar %}{% if forloop.last %}<div class="approval-box"><strong>Onaylayan</strong><span class="signature-gap"></span><span>{% if talep.durum == "ONAYLANDI" or talep.imza_tamamlanma_tarihi %}e-&#304;mzal&#305;d&#305;r{% else %}&#304;mza Bekliyor{% endif %}</span><b>{% firstof user.get_full_name user.username "Tanımlanmamış" as imzaci_adi %}{{ imzaci_adi|ad_soyad_yazimi }}</b><em>{{ rol }}</em></div>{% endif %}{% empty %}<div class="approval-box"><strong>Onaylayan</strong><em>Birimi i&#231;in imzac&#305; tan&#305;mlanmam&#305;&#351;.</em></div>{% endfor %}{% endif %}
             <div class="doc-footer"><strong>Kontrol Eden</strong><br>Personel &#304;zin Kontrol&#252;: {% if talep.kontrol_eden %}{{ talep.kontrol_eden.get_full_name|default:talep.kontrol_eden.username|ad_soyad_yazimi }}{% else %}Tan&#305;mlanmam&#305;&#351;{% endif %}</div>
         </div>
         {% if ekler %}
@@ -63,11 +63,12 @@
         <div class="doc-panel-title"><h2>Di&#287;er</h2><span>&#9662;</span></div>
         <dl class="evrak-meta">
             <dt>Evrak&#305;n Birimi</dt><dd>{{ personel.alt_birimi|default:personel.gorev_birimi }}</dd>
-            <dt>Kurum Kay&#305;t Tarihi</dt><dd>{{ talep.kurum_kayit_tarihi|date:"d.m.Y" }}</dd>
+            <dt>Kurum Kay&#305;t Tarihi</dt><dd>{{ talep.kurum_kayit_tarihi|date:"d.m.Y"|default:"Son imzada verilecek" }}</dd>
             <dt>Kontrol Eden</dt><dd>{% if talep.kontrol_eden %}{{ talep.kontrol_eden.get_full_name|default:talep.kontrol_eden.username }}{% else %}Tan&#305;mlanmam&#305;&#351;{% endif %}</dd>
             <dt>Durum</dt><dd>{{ talep.get_durum_display }}</dd>
             <dt>Kimin &#220;zerinde</dt><dd>{% if talep.kimin_uzerinde %}{{ talep.kimin_uzerinde.get_full_name|default:talep.kimin_uzerinde.username }}{% else %}-{% endif %}</dd>
-            <dt>&#304;zin Evrak No</dt><dd>{{ talep.evrak_no }}</dd>
+            <dt>Takip No</dt><dd>{{ talep.takip_no }}</dd>
+            <dt>Resmi Evrak No</dt><dd>{{ talep.evrak_no|default:"Son imzada verilecek" }}</dd>
             <dt>Konu</dt><dd>&#304;zin &#304;ste&#287;i</dd>
             <dt>T.C. Kimlik No</dt><dd>{{ personel.tc_no }}</dd>
             <dt>&#199;al&#305;&#351;an Tipi</dt><dd>{{ talep.get_personel_tipi_display|upper }}</dd>
@@ -101,6 +102,11 @@
 </div>
 {% endif %}
 <script>
+document.querySelectorAll('.flow-confirm-form').forEach(form => {
+  const version = document.createElement('input');
+  version.type = 'hidden'; version.name = 'evrak_surumu';
+  version.value = '{{ talep.guncelleme_zamani.isoformat|escapejs }}'; form.append(version);
+});
 (function(){
   const note = document.getElementById('rejectReasonNote');
   if(note){

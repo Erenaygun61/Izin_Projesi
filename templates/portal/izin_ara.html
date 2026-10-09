@@ -43,9 +43,9 @@
         </div>
         <div class="advanced-search-grid">
         <label>Genel Arama<input type="text" name="q" value="{{ q }}" placeholder="Evrak, ki&#351;i, birim, imzalayan, izin t&#252;r&#252; veya a&#231;&#305;klama ara"></label>
-        <label>Evrak No / Say&#305;<input type="text" name="evrak_no" value="{{ evrak_no }}" placeholder="&#214;rn: 2026-12"></label>
-        <label>Evrak Tarihi Ba&#351;lang&#305;&#231;<input type="date" name="tarih_baslangic" value="{{ tarih_baslangic }}"></label>
-        <label>Evrak Tarihi Biti&#351;<input type="date" name="tarih_bitis" value="{{ tarih_bitis }}"></label>
+        <label>Evrak / Takip No<input type="text" name="evrak_no" value="{{ evrak_no }}" placeholder="2026-12 veya TALEP-2026-12"></label>
+        <label>Kay&#305;t / Olu&#351;turma Ba&#351;lang&#305;&#231;<input type="date" name="tarih_baslangic" value="{{ tarih_baslangic }}"></label>
+        <label>Kay&#305;t / Olu&#351;turma Biti&#351;<input type="date" name="tarih_bitis" value="{{ tarih_bitis }}"></label>
         {% if genis_arama_yetkisi %}
         <div class="filter-picker" data-kind="birim">
             <label>Daire Ba&#351;kanl&#305;&#287;&#305; / Ana Birim</label>
@@ -81,7 +81,7 @@
         <th>Evrak Tan&#305;m&#305;</th>
         <th>Evrak&#305;n Birimi</th>
         <th>Konu</th>
-        <th>Evrak No</th>
+        <th>Evrak / Takip No</th>
         <th>Kurum Kay&#305;t Tarihi</th>
         <th>Olu&#351;turulma</th>
         <th>Olu&#351;turan</th>
@@ -97,17 +97,17 @@
                     <div class="row-menu-pop">
                         <a href="{% url 'evrak_paraf' row.talep.id %}">Evrak&#305; a&#231;</a>
                         <a href="{% url 'evrak_onizleme' row.talep.id %}" target="_blank" rel="opener">&#214;nizle</a>
-                        {% if row.can_sahibine_iade %}<button type="button" class="row-flow-action row-flow-danger js-sahibine-iade" data-talep-id="{{ row.talep.id }}" data-evrak-no="{{ row.talep.evrak_no }}">&#8617; Sahibine iade et</button>{% endif %}
-                        {% if row.can_geri_cek %}<select id="geri-cek-hedefleri-{{ row.talep.id }}" hidden>{% for hedef in row.geri_cekme_hedefleri %}<option value="{{ hedef.kullanici.id }}">{{ hedef.rol }} &mdash; {{ hedef.ad_soyad }}</option>{% endfor %}</select><button type="button" class="row-flow-action js-geri-cek" data-talep-id="{{ row.talep.id }}" data-evrak-no="{{ row.talep.evrak_no }}" data-target-source="geri-cek-hedefleri-{{ row.talep.id }}">&#8617; Geri &#231;ek</button>{% endif %}
-                        {% if row.can_delete %}<form method="post" class="delete-leave-form" data-evrak-no="{{ row.talep.evrak_no }}" data-approved="{% if row.talep.durum == 'ONAYLANDI' %}1{% else %}0{% endif %}">{% csrf_token %}<input type="hidden" name="islem" value="izin_sil"><input type="hidden" name="talep_id" value="{{ row.talep.id }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="yonetici_sifre" value=""><button type="submit">Sil</button></form>{% endif %}
+                        {% if row.can_sahibine_iade %}<button type="button" class="row-flow-action row-flow-danger js-sahibine-iade" data-talep-id="{{ row.talep.id }}" data-evrak-no="{{ row.talep.referans_no }}">&#8617; Sahibine iade et</button>{% endif %}
+                        {% if row.can_geri_cek %}<select id="geri-cek-hedefleri-{{ row.talep.id }}" hidden>{% for hedef in row.geri_cekme_hedefleri %}<option value="{{ hedef.kullanici.id }}">{{ hedef.rol }} &mdash; {{ hedef.ad_soyad }}</option>{% endfor %}</select><button type="button" class="row-flow-action js-geri-cek" data-talep-id="{{ row.talep.id }}" data-evrak-no="{{ row.talep.referans_no }}" data-target-source="geri-cek-hedefleri-{{ row.talep.id }}">&#8617; Geri &#231;ek</button>{% endif %}
+                        {% if row.can_delete %}<form method="post" class="delete-leave-form" data-evrak-no="{{ row.talep.referans_no }}" data-approved="{% if row.talep.durum == 'ONAYLANDI' %}1{% else %}0{% endif %}">{% csrf_token %}<input type="hidden" name="islem" value="izin_sil"><input type="hidden" name="talep_id" value="{{ row.talep.id }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="yonetici_sifre" value=""><button type="submit">Sil</button></form>{% endif %}
                     </div>
                 </div>
             </td>
             <td><a href="{% url 'evrak_paraf' row.talep.id %}">&#304;zin Talep Formu</a></td>
             <td>{% if row.personel %}{{ row.personel.gorev_birimi }}{% if row.personel.alt_birimi %}<br><small>{{ row.personel.alt_birimi }}</small>{% endif %}{% endif %}</td>
             <td>&#304;zin &#304;ste&#287;i</td>
-            <td class="red-no">{{ row.talep.evrak_no }}</td>
-            <td>{{ row.talep.kurum_kayit_tarihi|date:"d.m.Y" }}</td>
+            <td class="red-no">{{ row.talep.referans_no }}</td>
+            <td>{{ row.talep.kurum_kayit_tarihi|date:"d.m.Y"|default:"-" }}</td>
             <td>{{ row.talep.olusturma_zamani|date:"d.m.Y H:i" }}</td>
             <td>{{ row.talep.kullanici.get_full_name|default:row.talep.kullanici.username }}</td>
             <td>{% for user in row.imzalayanlar %}<span class="signer-chip">{{ user.get_full_name|default:user.username }}</span>{% empty %}-{% endfor %}</td>

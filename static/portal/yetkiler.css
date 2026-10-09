@@ -1,0 +1,50 @@
+.leave-permissions { color: #153c48; min-width: 0; }
+.lp-heading,.lp-section-head,.lp-search,.lp-pagination,.lp-actions { display:flex; align-items:center; gap:12px; }
+.lp-heading { justify-content:space-between; padding:0 0 16px; border-bottom:1px solid #cddfe5; }
+.lp-heading h2 { margin:0; font-size:22px; }
+.lp-heading span,.lp-muted { color:#607d87; }
+.lp-controllers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:20px 0; border-bottom:1px solid #cddfe5; gap:20px; }
+.lp-controllers span,.lp-users small { display:block; color:#607d87; font-size:12px; margin-bottom:4px; }
+.lp-controllers strong { font-size:14px; overflow-wrap:anywhere; }
+.lp-search { margin:20px 0; flex-wrap:wrap; }
+.lp-search input { width:340px; max-width:100%; }
+.lp-search label { font-weight:600; }
+.lp-workspace { display:grid; grid-template-columns:minmax(280px,0.8fr) minmax(400px,1.2fr); gap:28px; }
+.lp-users,.lp-access { min-width:0; }
+.lp-section-head { justify-content:space-between; border-bottom:1px solid #cddfe5; padding-bottom:12px; margin-bottom:12px; }
+.lp-section-head h3 { margin:0; font-size:16px; }
+.lp-table-wrap { overflow-x:auto; }
+.lp-users .lp-table-wrap { max-height:620px; overflow:auto; overscroll-behavior:contain; }
+.lp-users thead { position:sticky; top:0; z-index:1; }
+.leave-permissions table { width:100%; border-collapse:collapse; }
+.leave-permissions th,.leave-permissions td { padding:12px 10px; text-align:left; border-bottom:1px solid #dce8ec; }
+.leave-permissions th { background:#eaf4f5; font-size:12px; }
+.leave-permissions td:first-child,.leave-permissions th:first-child { width:36px; }
+.leave-permissions td strong { font-size:14px; overflow-wrap:anywhere; }
+.leave-permissions td small { margin:4px 0 0; }
+.leave-permissions input[type=checkbox] { width:16px; height:16px; flex:0 0 16px; accent-color:#008b8e; margin:0; }
+.leave-permissions tr:has(input:checked) { background:#eff9f6; }
+.lp-system-role { color:#19705c; font-size:11px; display:inline-block; margin-top:4px; }
+.lp-pagination { justify-content:flex-end; padding:16px 0; }
+.lp-pagination a { padding:6px 12px; border:1px solid #b6d1dc; border-radius:4px; }
+.lp-current { padding:10px 12px; background:#edf7f5; border-left:3px solid #138d77; margin:0 0 16px; }
+.lp-field { display:grid; gap:6px; margin-bottom:18px; }
+.lp-field label { font-size:13px; font-weight:600; }
+.leave-permissions fieldset { border:0; border-top:1px solid #dce8ec; margin:0; padding:16px 0 20px; }
+.leave-permissions legend { padding:0 10px 0 0; font-weight:700; font-size:14px; }
+.lp-checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 18px; }
+.lp-checks label,.lp-transfer { display:flex; gap:9px; align-items:flex-start; line-height:1.45; font-size:13px; }
+.lp-controller-option { color:#097266; font-weight:600; }
+.lp-transfer { margin:0 0 20px; padding-top:14px; border-top:1px solid #dce8ec; }
+.lp-actions { flex-wrap:wrap; padding-bottom:20px; }
+.lp-actions output { font-size:13px; color:#ab3131; }
+.leave-permissions button,.leave-permissions input:not([type=checkbox]),.leave-permissions select { border-radius:4px; min-height:36px; border:1px solid #aecbd7; font:inherit; }
+.leave-permissions button { padding:8px 14px; background:#fff; color:#154956; cursor:pointer; }
+.leave-permissions button[type=submit] { background:#00848d; border-color:#00848d; color:#fff; }
+.leave-permissions input:not([type=checkbox]),.leave-permissions select { padding:7px 10px; background:#fff; color:#153c48; width:100%; }
+.leave-permissions button:disabled { opacity:.5; cursor:not-allowed; }
+.leave-permissions .lp-search input { width:340px; max-width:100%; }
+.lp-checks label { font-weight:500; }
+.leave-permissions :focus-visible { outline:2px solid #079d85; outline-offset:3px; }
+@media(max-width:1000px) { .lp-workspace { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:540px) { .lp-heading { align-items:flex-start; flex-direction:column; } .lp-controllers { grid-template-columns:1fr; gap:12px; } .lp-checks { grid-template-columns:1fr; } .lp-search { align-items:stretch; } .lp-users .lp-table-wrap { max-height:360px; } }

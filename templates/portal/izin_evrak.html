@@ -27,7 +27,7 @@
             <div class="edit-preview" data-edit-preview>
                 <div class="edit-preview-head">
                     <span>{{ talep.get_durum_display }}</span>
-                    <strong>{{ talep.evrak_no }}</strong>
+                    <strong>{{ talep.referans_no }}</strong>
                 </div>
                 <h2>&#304;zin Evrak&#305; &#214;nizlemesi</h2>
                 <table class="mini-izin-preview">
@@ -46,7 +46,7 @@
                 </div>
                 <div class="edit-preview-signers">
                     <div><b>Talep Eden</b><span>{{ personel.ad_soyad|ad_soyad_yazimi }}</span><em>{{ personel|belge_gorevi }}</em></div>
-                    {% for rol,user in imzacilar %}<div><b>{{ rol }}</b><span>{{ user.get_full_name|default:user.username|ad_soyad_yazimi }}</span></div>{% empty %}<div><b>&#304;mzac&#305;</b><span>Tan&#305;mlanmam&#305;&#351;</span></div>{% endfor %}
+                    {% for rol,user in imzacilar %}<div><b>{{ rol }}</b><span>{% firstof user.get_full_name user.username "Tanımlanmamış" as imzaci_adi %}{{ imzaci_adi|ad_soyad_yazimi }}</span></div>{% empty %}<div><b>&#304;mzac&#305;</b><span>Tan&#305;mlanmam&#305;&#351;</span></div>{% endfor %}
                 </div>
             </div>
             </div>
@@ -86,9 +86,10 @@
         <div class="doc-panel-title"><h2>Di&#287;er</h2><span>&#9662;</span></div>
         <div class="person-summary">
             <strong>{{ personel.ad_soyad }}</strong><span>{{ personel.tc_no }} &#183; Sicil {{ personel.sicil_no }}</span><em>Toplam kalan izin: {{ toplam_kalan|izin_gunu }} g&#252;n</em>
-            <div class="signer-summary"><b>&#304;mzac&#305;lar</b>{% for rol,user in imzacilar %}<span>{{ rol }}: {{ user.get_full_name|default:user.username }}</span>{% empty %}<span>&#304;mzac&#305; tan&#305;mlanmam&#305;&#351;. L&#252;tfen &#304;K birimi ile g&#246;r&#252;&#351;&#252;n&#252;z.</span>{% endfor %}</div>
+            <div class="signer-summary"><b>&#304;mzac&#305;lar</b>{% for rol,user in imzacilar %}<span>{{ rol }}: {% firstof user.get_full_name user.username "Tanımlanmamış" %}</span>{% empty %}<span>&#304;mzac&#305; tan&#305;mlanmam&#305;&#351;. L&#252;tfen &#304;K birimi ile g&#246;r&#252;&#351;&#252;n&#252;z.</span>{% endfor %}</div>
         </div>
         <form method="post" class="evrak-form" id="evrakForm">{% csrf_token %}
+            {% if talep %}<input type="hidden" name="evrak_surumu" value="{{ talep.guncelleme_zamani.isoformat }}">{% endif %}
             {% if form.non_field_errors %}<div class="form-errors">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
             {% for field in form %}
                 <div class="doc-field {% if field.field.widget.attrs.data_system %}is-system{% elif field.field.required %}is-required{% else %}is-optional{% endif %} {% if field.name == 'adres' %}wide{% endif %}">
@@ -107,6 +108,7 @@
     </aside>
 </section>
 
+{{ form.tur_bakiyeleri|json_script:"izinTurBakiyeleri" }}
 <script>
 (function(){
   const documentTabs = document.querySelectorAll('[data-document-tab]');
@@ -152,7 +154,7 @@
   function formatGun(value){
     const rounded = Math.round(value * 100) / 100;
     if (Number.isInteger(rounded)) return String(rounded);
-    return String(rounded.toFixed(2)).replace('.', ',');
+    return String(rounded);
   }
   function dash(value){
     const clean = String(value || '').trim();
@@ -249,6 +251,33 @@
     }
     hak.addEventListener('input', updateKalan);
     kullanilan.addEventListener('input', updateKalan);
+    const izinTuru = previewFields.izin_turu;
+    const yilAlani = previewFields.ait_oldugu_yil;
+    const bakiyeler = JSON.parse(document.getElementById('izinTurBakiyeleri').textContent);
+    function turBakiyesiniUygula(degisti){
+      const haklar = bakiyeler[izinTuru.value] || [];
+      hak.readOnly = haklar.length > 0;
+      if(degisti || hak.readOnly){
+        hak.value = haklar.length ? formatGun(haklar.reduce((sum, item) => sum + parseGun(item.kalan), 0)) : '';
+      }
+      if(degisti || haklar.length){
+        let gun = parseGun(kullanilan.value);
+        const yillar = [];
+        for(const item of haklar){
+          if(parseGun(item.kalan) <= 0) continue;
+          if(!yillar.includes(item.yil)) yillar.push(item.yil);
+          gun -= parseGun(item.kalan);
+          if(gun <= 0) break;
+        }
+        const yil = yillar.length ? yillar.join('-') : hak.dataset.guncelYil;
+        if(yilAlani.tagName === 'SELECT' && !Array.from(yilAlani.options).some(item => item.value === yil)) yilAlani.add(new Option(yil, yil));
+        yilAlani.value = yil;
+      }
+      updateKalan();
+    }
+    izinTuru.addEventListener('change', () => turBakiyesiniUygula(true));
+    kullanilan.addEventListener('input', () => turBakiyesiniUygula(false));
+    turBakiyesiniUygula(false);
     updateKalan();
   }
   Object.keys(previewFields).forEach(function(key){

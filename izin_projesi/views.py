@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.views import LoginView
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.decorators import method_decorator
@@ -17,6 +18,9 @@ class IzinLoginView(LoginView):
 def csrf_failure(request, reason=""):
     """Bayat veya karışmış CSRF tokenlarında kullanıcıyı 403 sayfasına düşürme."""
 
+    match = request.resolver_match
+    if match and (match.url_name or "").startswith("personel_aktarim_"):
+        return JsonResponse({"error": "Oturum guvenlik bilginiz yenilendi. Sayfayi yenileyip tekrar deneyin."}, status=403)
     messages.warning(
         request,
         "Oturum güvenlik bilginiz yenilendi. Lütfen tekrar giriş yapın.",

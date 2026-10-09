@@ -11,6 +11,10 @@ from .models import IzinTalebi, IzinTuru
 class DateInput(forms.DateInput):
     input_type = "date"
 
+    def __init__(self, attrs=None, format=None):
+        # Native date controls require ISO values, regardless of locale.
+        super().__init__(attrs=attrs, format=format or "%Y-%m-%d")
+
 
 class TcSorguForm(forms.Form):
     tc_no = forms.CharField(
@@ -57,6 +61,7 @@ def izin_gunu_form_degeri(value):
 
 
 class IzinEvrakForm(forms.ModelForm):
+    takip_no = forms.CharField(label="Takip No", required=False, disabled=True)
     evrakin_birimi = forms.CharField(label="Evrak\u0131n Birimi", required=False, initial="\u0130nsan Kaynaklar\u0131 \u015eube M\u00fcd\u00fcrl\u00fc\u011f\u00fc")
     dosya_kodu = forms.CharField(label="Dosya Kodu", required=False, initial="903.05.01")
     konu = forms.CharField(label="Konu", required=False, initial="\u0130zin \u0130ste\u011fi")
@@ -88,7 +93,7 @@ class IzinEvrakForm(forms.ModelForm):
             "goreve_baslama_tarihi": DateInput(),
         }
 
-    def __init__(self, *args, personel=None, haklar=None, calisan_tipi="Memur", imzacilar=None, next_evrak_no="", toplam_izin=None, taslak=False, **kwargs):
+    def __init__(self, *args, personel=None, haklar=None, tur_haklari=None, calisan_tipi="Memur", imzacilar=None, next_evrak_no="", toplam_izin=None, taslak=False, **kwargs):
         super().__init__(*args, **kwargs)
         mevcut_evrak = bool(self.instance and self.instance.pk)
         bos_taslak = bool(
@@ -110,6 +115,7 @@ class IzinEvrakForm(forms.ModelForm):
         # Yıllık izin bakiyeleri eski yıldan yeni yıla kullanılır.
         haklar = sorted(list(haklar or []), key=lambda hak: (hak.izin_yili, hak.pk or 0))
         self._yillik_haklar = haklar
+        self._tur_haklari = {str(key): sorted(value, key=lambda hak: (hak.izin_yili, hak.pk or 0)) for key, value in (tur_haklari or {}).items()}
         kalanli_yillar = [
             hak for hak in haklar
             if Decimal(getattr(hak, "kalan", 0) or 0) > Decimal("0")
@@ -128,6 +134,12 @@ class IzinEvrakForm(forms.ModelForm):
                 yil_choices.append((kapsam, kapsam))
                 gorulen_secimler.add(kapsam)
         kayitli_yil = str(self.instance.ait_oldugu_yil or "").strip() if mevcut_evrak else ""
+        for tur_haklar in self._tur_haklari.values():
+            for index, hak in enumerate(tur_haklar):
+                for yil in [str(hak.izin_yili), "-".join(dict.fromkeys(str(item.izin_yili) for item in tur_haklar[:index + 1]))]:
+                    if yil not in gorulen_secimler:
+                        yil_choices.append((yil, yil))
+                        gorulen_secimler.add(yil)
         if kayitli_yil and kayitli_yil not in {str(value) for value, _label in yil_choices}:
             yil_choices.insert(0, (kayitli_yil, kayitli_yil))
         self.fields["ait_oldugu_yil"].choices = yil_choices
@@ -156,7 +168,10 @@ class IzinEvrakForm(forms.ModelForm):
             self.fields["calisan_tipi"].initial = calisan_tipi
         if not self.instance.pk:
             self.fields["evrak_no"].initial = next_evrak_no
-        sistem_alanlari = {"evrakin_birimi", "evrak_no", "dosya_kodu", "konu", "tc_no", "calisan_tipi", "sicil_no"}
+        self.fields["takip_no"].initial = self.instance.takip_no
+        self.fields["evrak_no"].label = "Resmi Evrak No"
+        self.fields["evrak_no"].widget.attrs["placeholder"] = "Son imzada verilecek"
+        sistem_alanlari = {"evrakin_birimi", "takip_no", "evrak_no", "dosya_kodu", "konu", "tc_no", "calisan_tipi", "sicil_no"}
         for name in sistem_alanlari:
             if name in self.fields:
                 self.fields[name].disabled = True
@@ -183,7 +198,7 @@ class IzinEvrakForm(forms.ModelForm):
                     self.initial[name] = value
                     self.fields[name].initial = value
         ordered = [
-            "evrakin_birimi", "evrak_no", "dosya_kodu", "konu",
+            "evrakin_birimi", "takip_no", "evrak_no", "dosya_kodu", "konu",
             "tc_no", "calisan_tipi", "sicil_no", "cep_telefonu", "izin_turu",
             "ait_oldugu_yil", "izin_hakki", "kullanilan_gun", "kalan_izin", "baslangic_tarihi", "bitis_tarihi", "goreve_baslama_tarihi",
         ]
@@ -201,10 +216,15 @@ class IzinEvrakForm(forms.ModelForm):
             for hak in kalanli_yillar
         ])
         self.fields["izin_hakki"].widget.attrs["data-guncel-yil"] = str(timezone.localdate().year)
+        self.tur_bakiyeleri = {
+            str(tur.pk): [{"yil": str(hak.izin_yili), "kalan": str(max(Decimal("0"), Decimal(hak.kalan or 0)))} for hak in (haklar if tur.yillik_izin_mi else self._tur_haklari.get(str(tur.pk), []))]
+            for tur in self.fields["izin_turu"].queryset
+        }
         self.fields["izin_hakki"].widget.attrs["data-otomatik-yeni"] = "1" if (not mevcut_evrak or bos_taslak) else "0"
         self.fields["ait_oldugu_yil"].widget.attrs["class"] += " otomatik-yil"
         self.fields["ait_oldugu_yil"].widget.attrs["tabindex"] = "-1"
         self.fields["ait_oldugu_yil"].widget.attrs["aria-readonly"] = "true"
+        self.fields["ait_oldugu_yil"].widget.attrs["readonly"] = "readonly"
         self.fields["kalan_izin"].widget.attrs["readonly"] = "readonly"
         self.fields["kalan_izin"].widget.attrs["tabindex"] = "-1"
         for name in {"izin_turu", "kullanilan_gun", "baslangic_tarihi", "bitis_tarihi", "goreve_baslama_tarihi"}:
@@ -223,15 +243,16 @@ class IzinEvrakForm(forms.ModelForm):
         if hak is not None and hak < 0:
             self.add_error("izin_hakki", "\u0130zin hakk\u0131 negatif olamaz.")
         izin_turu = cleaned.get("izin_turu")
+        secili_haklar = self._yillik_haklar if izin_turu and izin_turu.yillik_izin_mi else self._tur_haklari.get(str(getattr(izin_turu, "pk", "")), [])
         if izin_turu and izin_turu.yillik_izin_mi and not self._yillik_haklar:
             self.add_error(
                 "izin_hakki",
                 "İzin hakkınız bulunmadı. Yanlışlık olduğunu düşünüyorsanız lütfen İK ile iletişime geçiniz.",
             )
-        if izin_turu and izin_turu.yillik_izin_mi and gun is not None:
+        if izin_turu and secili_haklar and gun is not None:
             kalan_gun = Decimal(gun)
             kapsanan_haklar = []
-            for izin_hakki in self._yillik_haklar:
+            for izin_hakki in secili_haklar:
                 bakiye = Decimal(getattr(izin_hakki, "kalan", 0) or 0)
                 if bakiye <= 0:
                     continue
@@ -242,10 +263,10 @@ class IzinEvrakForm(forms.ModelForm):
             if kalan_gun > 0:
                 self.add_error(
                     "kullanilan_gun",
-                    "Yeterli yıllık izin bakiyesi bulunamadı. Yanlışlık olduğunu düşünüyorsanız İK ile iletişime geçiniz.",
+                    "Seçilen izin türü için yeterli bakiye bulunamadı. Lütfen İK ile iletişime geçiniz.",
                 )
             elif kapsanan_haklar:
-                toplam_hak = sum((Decimal(izin_hakki.kalan or 0) for izin_hakki in self._yillik_haklar), Decimal("0"))
+                toplam_hak = sum((max(Decimal("0"), Decimal(izin_hakki.kalan or 0)) for izin_hakki in secili_haklar), Decimal("0"))
                 cleaned["ait_oldugu_yil"] = "-".join(str(izin_hakki.izin_yili) for izin_hakki in kapsanan_haklar)
                 cleaned["izin_hakki"] = toplam_hak
                 cleaned["kalan_izin"] = max(Decimal("0.00"), toplam_hak - Decimal(gun))
@@ -258,6 +279,8 @@ class IzinEvrakForm(forms.ModelForm):
             if gun > hak:
                 self.add_error("kullanilan_gun", "\u0130zin s\u00fcresi izin hakk\u0131ndan fazla olamaz.")
             cleaned["kalan_izin"] = max(Decimal("0.00"), hak - gun)
+        elif hak is None:
+            cleaned["kalan_izin"] = None
         return cleaned
 
 

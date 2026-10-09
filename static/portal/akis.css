@@ -1,0 +1,25 @@
+@media screen {
+  .paraf-layout,.paraf-layout > * { min-width:0; }
+  .page { padding-bottom:90px; }
+  .paraf-actions { position:static; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:16px; padding:12px 0; background:transparent; }
+  .viewer-bar { min-height:48px; height:auto; flex-wrap:wrap; gap:10px; padding:10px 14px; }
+  .viewer-bar strong { min-width:0; overflow-wrap:anywhere; flex:1; }
+  .viewer-bar em { white-space:nowrap; flex:0 0 auto; }
+}
+@media screen and (max-width:640px) {
+  .paraf-layout { grid-template-columns:minmax(0,1fr); }
+  .evrak-viewer { min-width:0; width:100%; box-sizing:border-box; }
+  .paper-page { min-width:0!important; width:100%!important; box-sizing:border-box!important; padding:18px 10px!important; }
+  .paper-page .izin-table { table-layout:fixed; }
+  .paper-page .izin-table th,.paper-page .izin-table td { font-size:12px!important; padding:5px 4px!important; overflow-wrap:anywhere; }
+  .paper-page .doc-antet { grid-template-columns:42px minmax(0,1fr) 42px; gap:6px; }
+  .paper-page .doc-logo { width:40px; height:40px; }
+  .paper-page .doc-title h1,.paper-page .doc-title h2 { font-size:14px; }
+  .paper-page .doc-title h3 { font-size:12px; }
+  .paper-page .request-signatures .signature-box { min-width:0; overflow-wrap:anywhere; padding:10px 6px!important; }
+  .paper-page .signature-name { overflow-wrap:anywhere; }
+  .viewer-bar strong { flex-basis:50%; }
+  .viewer-bar .viewer-download,.viewer-bar .viewer-print { flex:1; justify-content:center; }
+  .paraf-side { min-width:0; max-height:none; }
+  .paraf-actions { justify-content:flex-start; }
+}
