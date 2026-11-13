@@ -337,6 +337,7 @@ Public Function SaveCompactLeave(ByVal pid As String, ByVal typeCode As String, 
     Dim ws As Worksheet, people As Variant, leaves As Variant, oldRow As Variant, proposed(1 To 1, 1 To 11) As Variant
     Dim r As Long, c As Long, lastRow As Long, targetRow As Long, n As Long, found As Boolean, imported As Boolean
     Dim id As String, code As String, days As Double, result As String, failure As String, wrote As Boolean, preserveOverlap As Boolean
+    Dim oldCounter As Variant, allocatedId As Boolean
     On Error GoTo Failed
     Set ws = CC_Sheet
     lastRow = CC_Last(2)
@@ -388,6 +389,8 @@ Public Function SaveCompactLeave(ByVal pid As String, ByVal typeCode As String, 
     End If
     If targetRow = 0 Then
         targetRow = Application.Max(2, lastRow + 1)
+        oldCounter = ws.Range("AI4").Value2
+        allocatedId = True
         id = CompactNextLeaveId()
         proposed(1, 11) = "Elle"
     Else
@@ -404,6 +407,7 @@ Public Function SaveCompactLeave(ByVal pid As String, ByVal typeCode As String, 
     If Len(result) > 0 Then
         If IsEmpty(oldRow) Then ws.Range("R" & targetRow & ":AB" & targetRow).ClearContents Else ws.Range("R" & targetRow & ":AB" & targetRow).Value2 = oldRow
         failure = CompactRecalcBalances()
+        If allocatedId Then ws.Range("AI4").Value2 = oldCounter
         SaveCompactLeave = result: Exit Function
     End If
     SaveCompactLeave = id
@@ -416,6 +420,7 @@ Failed:
         If IsEmpty(oldRow) Then ws.Range("R" & targetRow & ":AB" & targetRow).ClearContents Else ws.Range("R" & targetRow & ":AB" & targetRow).Value2 = oldRow
         result = CompactRecalcBalances()
     End If
+    If allocatedId Then ws.Range("AI4").Value2 = oldCounter
     SaveCompactLeave = "ERR:İzin kaydedilemedi: " & failure
 End Function
 
@@ -537,8 +542,10 @@ Public Sub CompactHandleChange(ByVal Sh As Object, ByVal target As Range)
             CU_Search
         ElseIf Not Intersect(target, Sh.Range("J24,L24")) Is Nothing Then
             CompactHistoryReset
-        ElseIf Not Intersect(target, Sh.Range("J9,M9,L12")) Is Nothing Then
+        ElseIf Not Intersect(target, Sh.Range("J9,M9")) Is Nothing Then
             CU_Preview
+        ElseIf Not Intersect(target, Sh.Range("L12,L14")) Is Nothing Then
+            CompactBalancePreview
         End If
     ElseIf Sh.name = "Raporlar" Then
         If Not Intersect(target, Sh.Range("B5,F5,B7,F7,B9,F9,B11,F11")) Is Nothing Then CompactReportsDirty
@@ -586,6 +593,7 @@ Public Sub CompactClear()
     CU_Clear ws.Range("L14"): CU_Clear ws.Range("J16")
     ws.Range("L12").Value2 = "Yıllık İzin"
     ws.Range("J5").Value2 = "YENİ İZİN"
+    CompactBalancePreview
 Done:
     Application.EnableEvents = oldEvents
 End Sub
@@ -621,17 +629,16 @@ Private Sub CU_Action(ByVal action As String)
         If Len(CStr(ws.Range("L14").Value2)) > 0 Then
             If Not IsNumeric(ws.Range("L14").Value2) Then MsgBox "İzin gününü sayı olarak girin.", vbExclamation: GoTo Done
             days = CDbl(ws.Range("L14").Value2)
+            If days <= 0 Then MsgBox "İzin gününü pozitif tam veya yarım gün girin.", vbExclamation: GoTo Done
         End If
         answer = SaveCompactLeave(pid, code, firstDay, lastDay, days, id)
         If left$(answer, 3) = "ERR" Then MsgBox answer, vbExclamation, "İzin kaydedilemedi": GoTo Done
-        ws.Range("AI3").Value2 = answer
         r = CU_LeaveRow(answer)
         If r > 0 Then ws.Cells(r, 26).Value2 = CStr(ws.Range("J16").Value2)
         CompactPrimeRoster
-        CU_ShowSelected
+        CompactResetAfterSave
         CompactRefreshAttendance
         CompactReportsDirty
-        ws.Range("J5").Value2 = "KAYITLI İZİN  /  " & answer
         MsgBox "İzin kaydedildi; puantaj güncellendi.", vbInformation
     Else
         If ActiveSheet.name = ws.name And ActiveCell.row >= 26 And ActiveCell.row <= 35 And ActiveCell.column >= 10 And ActiveCell.column <= 15 Then
@@ -658,6 +665,7 @@ Private Sub CU_Action(ByVal action As String)
             ws.Range("L14").Value2 = ws.Cells(r, 23).Value2
             ws.Range("J16").Value2 = ws.Cells(r, 26).Value2
             ws.Range("J5").Value2 = "İZİN DÜZENLE  /  " & id
+            CompactBalancePreview
             ws.Activate: ActiveWindow.ScrollRow = 1
             ws.Range("J9").Select
         End If
@@ -851,6 +859,7 @@ Private Sub CU_ShowSelected()
     Next i
     ws.Range("L36").Value2 = CStr(page) & " / " & CStr(pageCount)
 Done:
+    CompactBalancePreview
     On Error GoTo 0
     If Not ws Is Nothing Then
         If wasProtected Then ws.Protect Password:="2022-tiski", UserInterfaceOnly:=True, AllowFiltering:=True
@@ -886,6 +895,7 @@ Private Sub CU_Preview()
     Set ws = ThisWorkbook.Worksheets("İzin Girişi")
     a = CU_Date(ws.Range("J9").Value2): b = CU_Date(ws.Range("M9").Value2)
     If a > 0 And b >= a Then ws.Range("L14").Value2 = b - a + 1 Else CU_Clear ws.Range("L14")
+    CompactBalancePreview
 End Sub
 
 Private Function CU_LastRow(ByVal ws As Worksheet, ByVal col As Long) As Long
@@ -3050,3 +3060,174 @@ Private Sub CY_RestoreYearFilters(ByVal ws As Worksheet, ByVal filterRange As St
         CB_RestoreFilters ws, filters
     End If
 End Sub
+
+
+Public Sub CompactResetAfterSave()
+    Dim ws As Worksheet, oldEvents As Boolean
+    oldEvents = Application.EnableEvents
+    On Error GoTo Failed
+    Application.EnableEvents = False
+    Set ws = ThisWorkbook.Worksheets("İzin Girişi")
+    CompactClear
+    ws.Range("AI2").ClearContents
+    CU_Clear ws.Range("C5")
+    ws.Range("AI11").Value2 = 1
+    CompactSearchClose
+    CU_Search False, False
+    CU_ShowSelected
+    ws.Activate
+    ActiveWindow.ScrollRow = 1: ActiveWindow.ScrollColumn = 1
+    ws.Range("C5").Select
+    Application.EnableEvents = oldEvents
+    Exit Sub
+Failed:
+    Application.EnableEvents = oldEvents
+    Err.Raise Err.Number, "CompactResetAfterSave", Err.Description
+End Sub
+
+' Display-only balance preview. Rights, ledger, allocations and ID counters are never written.
+Public Sub CompactBalancePreview()
+    Dim ws As Worksheet, pid As String, code As String, editId As String, message As String
+    Dim firstDay As Double, lastDay As Double, days As Double, total As Double, projected As Double
+    Dim oldEvents As Boolean, wasProtected As Boolean
+    oldEvents = Application.EnableEvents
+    On Error GoTo Failed
+    Application.EnableEvents = False
+    Set ws = CC_Sheet
+    wasProtected = ws.ProtectContents Or ws.ProtectDrawingObjects
+    If wasProtected Then ws.Unprotect Password:="2022-tiski"
+    CBP_Write ws.Range("J7"), "", False
+    CBP_Write ws.Range("J11"), "", False
+    pid = CC_Text(ws.Range("AI2").Value2)
+    If Len(pid) = 0 Then GoTo Done
+    If CP_PersonRow(pid) = 0 Then GoTo Done
+    total = CompactBalance(pid, CompactLeftYear()) + CompactBalance(pid, CompactRightYear())
+    CBP_Write ws.Range("J7"), "Toplam kalan izin: " & CStr(Round(total, 2)) & " gün", False
+    If Len(CC_Text(ws.Range("J9").Value2)) = 0 Or Len(CC_Text(ws.Range("M9").Value2)) = 0 Then GoTo Done
+    firstDay = CU_Date(ws.Range("J9").Value2): lastDay = CU_Date(ws.Range("M9").Value2)
+    code = CU_TypeCode(CC_Text(ws.Range("L12").Value2))
+    editId = CC_Text(ws.Range("AI3").Value2)
+    days = -1
+    If Len(CC_Text(ws.Range("L14").Value2)) > 0 Then
+        If Not IsNumeric(ws.Range("L14").Value2) Then
+            CBP_Write ws.Range("J11"), "İzin gününü sayı olarak girin.", True
+            GoTo Done
+        End If
+        days = CDbl(ws.Range("L14").Value2)
+        If days <= 0 Then
+            CBP_Write ws.Range("J11"), "İzin gününü pozitif tam veya yarım gün girin.", True
+            GoTo Done
+        End If
+    End If
+    message = CBP_Project(pid, code, firstDay, lastDay, days, editId, projected)
+    If Len(message) > 0 Then
+        CBP_Write ws.Range("J11"), message, True
+    Else
+        CBP_Write ws.Range("J11"), "Kayıt sonrası kalan: " & CStr(Round(projected, 2)) & " gün", False
+    End If
+Done:
+    On Error Resume Next
+    If Not ws Is Nothing Then
+        If wasProtected Then ws.Protect Password:="2022-tiski", UserInterfaceOnly:=True, AllowFiltering:=True
+    End If
+    Application.EnableEvents = oldEvents
+    Exit Sub
+Failed:
+    On Error Resume Next
+    If Not ws Is Nothing Then CBP_Write ws.Range("J11"), "Bakiye önizlemesi için kayıtları kontrol edin.", True
+    GoTo Done
+End Sub
+
+Private Sub CBP_Write(ByVal target As Range, ByVal text As String, ByVal warning As Boolean)
+    target.MergeArea.ClearContents
+    target.Value2 = text
+    With target.MergeArea.Font
+        .Bold = True
+        If warning Then .Color = RGB(170, 74, 42) Else .Color = RGB(13, 120, 91)
+    End With
+End Sub
+
+Private Function CBP_Project(ByVal pid As String, ByVal code As String, ByVal firstDay As Double, ByVal lastDay As Double, ByVal days As Double, ByVal editId As String, ByRef projected As Double) As String
+    Dim ws As Worksheet, source As Variant, leaves As Variant, rights As Variant
+    Dim balances As Object, used As Object, distribution As Object, indices() As Long
+    Dim n As Long, target As Long, r As Long, c As Long, i As Long, count As Long, d As Long
+    Dim startDay As Long, endDay As Long, key As String, result As String, amount As Double
+    Dim imported As Boolean, preserveOverlap As Boolean
+    Set ws = CC_Sheet
+    If Len(code) = 0 Then CBP_Project = "Geçerli bir izin türü seçin.": Exit Function
+    If Not CC_DateOK(firstDay) Or Not CC_DateOK(lastDay) Then CBP_Project = "Başlangıç ve bitiş tarihlerini kontrol edin.": Exit Function
+    firstDay = Fix(firstDay): lastDay = Fix(lastDay)
+    If lastDay < firstDay Then CBP_Project = "Bitiş tarihi başlangıçtan önce olamaz.": Exit Function
+    If days = -1 Then days = lastDay - firstDay + 1
+    If days <= 0 Or Abs(days * 2 - Round(days * 2, 0)) > 0.000001 Then CBP_Project = "İzin gününü pozitif tam veya yarım gün girin.": Exit Function
+    If days > lastDay - firstDay + 1 Then
+        If Not CC_ImportedValuesUnchanged(pid, code, firstDay, lastDay, days, editId) Then CBP_Project = "İzin günü tarih aralığını aşamaz.": Exit Function
+    End If
+    If code = "YILLIK" And Year(CDate(firstDay)) <> Year(CDate(lastDay)) And Abs(days - (lastDay - firstDay + 1)) > 0.000001 Then CBP_Project = "Yıl aşan, günü değiştirilen izni iki kayıt girin.": Exit Function
+    If CC_Last(18) >= 2 Then
+        source = ws.Range("R2:AB" & CStr(CC_Last(18))).Value2
+        n = UBound(source, 1)
+    End If
+    ReDim leaves(1 To n + 1, 1 To 11)
+    For r = 1 To n
+        For c = 1 To 11: leaves(r, c) = source(r, c): Next c
+        If Len(editId) > 0 And CC_Text(leaves(r, 1)) = editId And target = 0 Then target = r
+    Next r
+    If Len(editId) > 0 Then
+        If target = 0 Then CBP_Project = "Düzenlenecek izin bulunamadı.": Exit Function
+        If CC_Text(leaves(target, 2)) <> pid Then CBP_Project = "İzin başka personele ait.": Exit Function
+        imported = Not CC_Bool(leaves(target, 7)) And InStr(1, CC_Normal(CC_Text(leaves(target, 11))), "kaynak", vbBinaryCompare) > 0
+        preserveOverlap = imported And CDbl(leaves(target, 4)) = firstDay And CDbl(leaves(target, 5)) = lastDay
+    End If
+    If Not preserveOverlap Then
+        For r = 1 To n
+            If CC_Text(leaves(r, 2)) = pid And CC_Text(leaves(r, 1)) <> editId And CC_Active(leaves(r, 8)) Then
+                If CC_DateOK(leaves(r, 4)) And CC_DateOK(leaves(r, 5)) Then
+                    If CDbl(leaves(r, 4)) <= lastDay And CDbl(leaves(r, 5)) >= firstDay Then CBP_Project = "Bu tarihlerde başka izin var: " & CC_Text(leaves(r, 1)): Exit Function
+                End If
+            End If
+        Next r
+    End If
+    If target = 0 Then n = n + 1: target = n
+    leaves(target, 2) = pid: leaves(target, 3) = code
+    leaves(target, 4) = firstDay: leaves(target, 5) = lastDay: leaves(target, 6) = days
+    leaves(target, 7) = code = "YILLIK" And Not imported: leaves(target, 8) = "Onaylı"
+    Set balances = CC_Dict(): Set used = CC_Dict()
+    If CC_Last(30) >= 2 Then
+        rights = ws.Range("AD2:AG" & CStr(CC_Last(30))).Value2
+        For r = 1 To UBound(rights, 1)
+            If Not IsNumeric(rights(r, 2)) Or Not IsNumeric(rights(r, 3)) Then CBP_Project = "İzin hakkı yılını ve gününü kontrol edin.": Exit Function
+            If CDbl(rights(r, 3)) < 0 Then CBP_Project = "İzin hakkı negatif olamaz.": Exit Function
+            key = CC_Key(CC_Text(rights(r, 1)), CLng(rights(r, 2)))
+            If balances.Exists(key) Then CBP_Project = "Aynı personel/yıl için iki hak kaydı var.": Exit Function
+            balances(key) = CDbl(rights(r, 3)): used(key) = 0#
+        Next r
+    End If
+    ReDim indices(1 To n)
+    For r = 1 To n
+        If CC_Active(leaves(r, 8)) And CC_Bool(leaves(r, 7)) And CompactTypeCode(CC_Text(leaves(r, 3))) = "YILLIK" Then
+            If Not CC_DateOK(leaves(r, 4)) Or Not CC_DateOK(leaves(r, 5)) Or Not IsNumeric(leaves(r, 6)) Then CBP_Project = "Kayıtlı iznin tarihini/gününü kontrol edin.": Exit Function
+            startDay = CLng(leaves(r, 4)): endDay = CLng(leaves(r, 5)): amount = CDbl(leaves(r, 6))
+            If endDay < startDay Or amount <= 0 Or amount > endDay - startDay + 1 Then CBP_Project = "Kayıtlı izin aralığını/gününü kontrol edin.": Exit Function
+            If Year(CDate(startDay)) <> Year(CDate(endDay)) And Abs(amount - (endDay - startDay + 1)) > 0.000001 Then CBP_Project = "Yıl aşan, günü değiştirilen izni iki kayıt girin.": Exit Function
+            count = count + 1: indices(count) = r
+        End If
+    Next r
+    If count > 1 Then CC_SortLeaves indices, leaves, 1, count
+    For i = 1 To count
+        r = indices(i): Set distribution = CC_Dict()
+        startDay = CLng(leaves(r, 4)): endDay = CLng(leaves(r, 5)): amount = CDbl(leaves(r, 6))
+        If Year(CDate(startDay)) = Year(CDate(endDay)) Then
+            result = CC_Charge(CC_Text(leaves(r, 2)), Year(CDate(startDay)), amount, balances, used, distribution)
+        Else
+            result = ""
+            For d = startDay To endDay
+                result = CC_Charge(CC_Text(leaves(r, 2)), Year(CDate(d)), 1, balances, used, distribution)
+                If Len(result) > 0 Then Exit For
+            Next d
+        End If
+        If Len(result) > 0 Then CBP_Project = result: Exit Function
+    Next i
+    key = CC_Key(pid, CompactLeftYear()): If balances.Exists(key) Then projected = CDbl(balances(key))
+    key = CC_Key(pid, CompactRightYear()): If balances.Exists(key) Then projected = projected + CDbl(balances(key))
+End Function

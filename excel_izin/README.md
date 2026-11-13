@@ -7,3 +7,5 @@ Kaynaklar UTF-8 biçimindedir. VBE içe aktarmasında Türkçe karakterleri koru
 Çalışır dosyanın düzeni ve kişisel verileri şifreli tam yedeğin `excel/Memur_Izin_Takibi.xlsm` dosyasındadır. Tam yedek maaş deposundaki `guvenli_yedekler` klasöründe saklanır. Kurtarma anahtarı ayrı tutulur; Git'e yüklenmez. Geri yükleme açıklaması maaş deposundaki `docs/GIT_YEDEKLEME.md` dosyasındadır.
 
 Çalışma sayfası koruma şifresi: `2022-tiski`. Bu yalnız sayfa düzenleme korumasıdır; tam yedeğin şifreleme anahtarı değildir.
+
+13.11.2026: İzin kaydedilince form ve personel araması temizlenir. Seçili personelin toplam izni ve girilen yıllık izin sonrası kalan izin önizlemesi gösterilir.

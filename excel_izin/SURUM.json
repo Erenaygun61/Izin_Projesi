@@ -1,18 +1,20 @@
 {
-  "date": "2026-11-12",
+  "date": "2026-11-13",
   "format": "Excel VBA UTF-8",
   "modules": {
     "src/belge/ThisWorkbook.cls": "6cc68e58fb1195b4f587b2d060a8eb5b0c97f167f4459800ea9a35da59e0907a",
-    "src/belge/Sheet1.cls": "87829da4891211897d3ed82168ce5a87d9b177791be8dac93db064afaaa08a48",
-    "src/modul/Module1.bas": "2ffd98e972eee245f9d8473b5b5ce2799b08bf139b292d39e9937a94e04327e9",
-    "src/belge/ThisWorkbook1.cls": "b4d123373d9fdb93995fe0969f00a87649fb11090bff48a15d911d9bd87a85f4",
-    "src/belge/Sheet2.cls": "5147dec02e5188c3ea0a500dd6f64e839747ad06880a7c13c008b9c29a24c877"
+    "src/belge/Sheet1.cls": "dec8f2e304696d6716bcd2a61a439cb2d2982eb113e710b79bbb8a81b32b0ae9",
+    "src/modul/Module1.bas": "93425a1fdcd91766398ec0e158c1292ce5bead930ae978abb74c1ff06b537d62",
+    "src/belge/ThisWorkbook1.cls": "3a0c4aab76a4ca0f40468cf6e0a5cbe2ff91119ab248acbbc1b5d5fabbd53390",
+    "src/belge/Sheet2.cls": "a29b5e04369fbd326d75cb6bfd9dc8a75d08e867675fd9eeb140d7c0f84d1534"
   },
   "features": [
     "Sayfali izin ve rapor gecmisi",
     "Yil/tur filtresi",
     "Yedekli yeni yil gecisi",
     "Otomatik + baglantisi onarimi",
-    "Aciklama notlari"
+    "Aciklama notlari",
+    "Kayit sonrasi izin formunu ve personel aramasini temizleme",
+    "Secili personelin toplam izni ve kayit sonrasi kalan izin onizlemesi"
   ]
 }
